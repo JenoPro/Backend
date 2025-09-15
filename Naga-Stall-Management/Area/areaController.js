@@ -1,21 +1,22 @@
 import { createConnection } from '../config/database.js'
 
-// Get all areas
+// Get all areas and locations from branch managers
 export async function getAllAreas(req, res) {
   let connection
   try {
     connection = await createConnection()
     const [areas] = await connection.execute(`
       SELECT 
-        ID,
-        city,
-        branch,
-        description,
-        is_active,
+        branch_manager_id as ID,
+        area as city,
+        location as branch,
+        CONCAT(first_name, ' ', last_name) as manager_name,
+        email,
+        status,
         created_at
-      FROM Area 
-      WHERE is_active = TRUE
-      ORDER BY city, branch
+      FROM branch_manager
+      WHERE status = 'Active'
+      ORDER BY area, location
     `)
 
     res.json({
@@ -45,23 +46,31 @@ export async function getAreasByCity(req, res) {
     const [areas] = await connection.execute(
       `
       SELECT 
-        ID,
-        city,
-        branch,
-        description,
-        is_active,
+        branch_manager_id as ID,
+        area as city,
+        location as branch,
+        CONCAT(first_name, ' ', last_name) as manager_name,
+        email,
+        status,
         created_at
-      FROM Area 
-      WHERE city = ? AND is_active = TRUE
-      ORDER BY branch
+      FROM branch_manager
+      WHERE area = ? AND status = 'Active'
+      ORDER BY location
     `,
       [city],
     )
 
+    if (areas.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: `No areas found for city: ${city}`,
+      })
+    }
+
     res.json({
       success: true,
       data: areas,
-      message: `Areas for ${city} retrieved successfully`,
+      message: `Areas in ${city} retrieved successfully`,
     })
   } catch (error) {
     console.error('Error fetching areas by city:', error)
@@ -75,7 +84,7 @@ export async function getAreasByCity(req, res) {
   }
 }
 
-// Get area by ID
+// Get area by ID (branch manager by ID)
 export async function getAreaById(req, res) {
   let connection
   try {
@@ -85,14 +94,17 @@ export async function getAreaById(req, res) {
     const [areas] = await connection.execute(
       `
       SELECT 
-        ID,
-        city,
-        branch,
-        description,
-        is_active,
+        branch_manager_id as ID,
+        area as city,
+        location as branch,
+        CONCAT(first_name, ' ', last_name) as manager_name,
+        first_name,
+        last_name,
+        email,
+        status,
         created_at
-      FROM Area 
-      WHERE ID = ?
+      FROM branch_manager
+      WHERE branch_manager_id = ? AND status = 'Active'
     `,
       [id],
     )
@@ -104,9 +116,41 @@ export async function getAreaById(req, res) {
       })
     }
 
+    // Get statistics for this area
+    const [floorCount] = await connection.execute(
+      'SELECT COUNT(*) as floor_count FROM floor WHERE branch_manager_id = ?',
+      [id],
+    )
+
+    const [sectionCount] = await connection.execute(
+      `SELECT COUNT(*) as section_count 
+       FROM section s
+       JOIN floor f ON s.floor_id = f.floor_id
+       WHERE f.branch_manager_id = ?`,
+      [id],
+    )
+
+    const [stallCount] = await connection.execute(
+      `SELECT COUNT(*) as stall_count 
+       FROM stall st
+       JOIN section s ON st.section_id = s.section_id
+       JOIN floor f ON s.floor_id = f.floor_id
+       WHERE f.branch_manager_id = ?`,
+      [id],
+    )
+
+    const areaData = {
+      ...areas[0],
+      stats: {
+        floor_count: floorCount[0].floor_count,
+        section_count: sectionCount[0].section_count,
+        stall_count: stallCount[0].stall_count,
+      },
+    }
+
     res.json({
       success: true,
-      data: areas[0],
+      data: areaData,
       message: 'Area retrieved successfully',
     })
   } catch (error) {
@@ -121,56 +165,29 @@ export async function getAreaById(req, res) {
   }
 }
 
-// Create new area
-export async function createArea(req, res) {
+// Get unique cities
+export async function getCities(req, res) {
   let connection
   try {
-    const { city, branch, description } = req.body
-
-    // Validation
-    if (!city || !branch) {
-      return res.status(400).json({
-        success: false,
-        message: 'City and branch are required',
-      })
-    }
-
     connection = await createConnection()
+    const [cities] = await connection.execute(`
+      SELECT DISTINCT area as city, COUNT(*) as branch_count
+      FROM branch_manager
+      WHERE status = 'Active'
+      GROUP BY area
+      ORDER BY area
+    `)
 
-    // Check if area already exists
-    const [existingArea] = await connection.execute(
-      'SELECT ID FROM Area WHERE city = ? AND branch = ?',
-      [city, branch],
-    )
-
-    if (existingArea.length > 0) {
-      return res.status(409).json({
-        success: false,
-        message: 'Area with this city and branch already exists',
-      })
-    }
-
-    // Create new area
-    const [result] = await connection.execute(
-      'INSERT INTO Area (city, branch, description) VALUES (?, ?, ?)',
-      [city, branch, description || null],
-    )
-
-    res.status(201).json({
+    res.json({
       success: true,
-      data: {
-        ID: result.insertId,
-        city,
-        branch,
-        description,
-      },
-      message: 'Area created successfully',
+      data: cities,
+      message: 'Cities retrieved successfully',
     })
   } catch (error) {
-    console.error('Error creating area:', error)
+    console.error('Error fetching cities:', error)
     res.status(500).json({
       success: false,
-      message: 'Failed to create area',
+      message: 'Failed to fetch cities',
       error: error.message,
     })
   } finally {
@@ -178,84 +195,36 @@ export async function createArea(req, res) {
   }
 }
 
-// Update area
-export async function updateArea(req, res) {
+// Get locations within a city
+export async function getLocationsByCity(req, res) {
   let connection
   try {
-    const { id } = req.params
-    const { city, branch, description, is_active } = req.body
-
+    const { city } = req.params
     connection = await createConnection()
 
-    // Check if area exists
-    const [existingArea] = await connection.execute('SELECT ID FROM Area WHERE ID = ?', [id])
-    if (existingArea.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'Area not found',
-      })
-    }
-
-    // Update area
-    await connection.execute(
-      'UPDATE Area SET city = ?, branch = ?, description = ?, is_active = ? WHERE ID = ?',
-      [city, branch, description, is_active !== undefined ? is_active : true, id],
+    const [locations] = await connection.execute(
+      `
+      SELECT 
+        branch_manager_id as ID,
+        location as branch,
+        CONCAT(first_name, ' ', last_name) as manager_name
+      FROM branch_manager
+      WHERE area = ? AND status = 'Active'
+      ORDER BY location
+    `,
+      [city],
     )
 
     res.json({
       success: true,
-      message: 'Area updated successfully',
-      data: { id, city, branch, description, is_active },
+      data: locations,
+      message: `Locations in ${city} retrieved successfully`,
     })
   } catch (error) {
-    console.error('Error updating area:', error)
+    console.error('Error fetching locations by city:', error)
     res.status(500).json({
       success: false,
-      message: 'Failed to update area',
-      error: error.message,
-    })
-  } finally {
-    if (connection) await connection.end()
-  }
-}
-
-// Delete area (soft delete)
-export async function deleteArea(req, res) {
-  let connection
-  try {
-    const { id } = req.params
-    connection = await createConnection()
-
-    // Check if area exists
-    const [existingArea] = await connection.execute('SELECT ID FROM Area WHERE ID = ?', [id])
-    if (existingArea.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'Area not found',
-      })
-    }
-
-    // Check if area is being used by any admin
-    const [adminUsing] = await connection.execute('SELECT ID FROM Admin WHERE area_id = ?', [id])
-    if (adminUsing.length > 0) {
-      return res.status(409).json({
-        success: false,
-        message: 'Cannot delete area that is being used by admin users',
-      })
-    }
-
-    // Soft delete (set is_active to false)
-    await connection.execute('UPDATE Area SET is_active = FALSE WHERE ID = ?', [id])
-
-    res.json({
-      success: true,
-      message: 'Area deleted successfully',
-    })
-  } catch (error) {
-    console.error('Error deleting area:', error)
-    res.status(500).json({
-      success: false,
-      message: 'Failed to delete area',
+      message: 'Failed to fetch locations',
       error: error.message,
     })
   } finally {

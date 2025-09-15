@@ -20,7 +20,7 @@ export const applicationController = {
 
       // Check if stall exists and is available
       const [stallRows] = await connection.execute(
-        'SELECT * FROM stall WHERE stall_id = ? AND status = "Active"',
+        'SELECT * FROM stall WHERE stall_id = ? AND is_available = 1 AND status = "Active"',
         [stall_id]
       );
 
@@ -113,13 +113,10 @@ export const applicationController = {
           s.rental_price,
           s.stall_location,
           s.section,
-          s.floor,
-          bm.area,
-          bm.location as branch_location
+          s.floor
         FROM application app
         JOIN applicant a ON app.applicant_id = a.applicant_id
         JOIN stall s ON app.stall_id = s.stall_id
-        JOIN branch_manager bm ON s.branch_manager_id = bm.branch_manager_id
         WHERE 1=1
       `;
 
@@ -177,10 +174,6 @@ export const applicationController = {
           app.*,
           a.*,
           s.*,
-          bm.area,
-          bm.location as branch_location,
-          bm.first_name as manager_first_name,
-          bm.last_name as manager_last_name,
           bi.nature_of_business,
           bi.capitalization,
           bi.source_of_capital,
@@ -198,7 +191,6 @@ export const applicationController = {
         FROM application app
         JOIN applicant a ON app.applicant_id = a.applicant_id
         JOIN stall s ON app.stall_id = s.stall_id
-        JOIN branch_manager bm ON s.branch_manager_id = bm.branch_manager_id
         LEFT JOIN business_information bi ON a.applicant_id = bi.applicant_id
         LEFT JOIN spouse sp ON a.applicant_id = sp.applicant_id
         LEFT JOIN other_information oi ON a.applicant_id = oi.applicant_id
@@ -241,7 +233,7 @@ export const applicationController = {
       const { application_status } = req.body;
 
       // Validate status
-      const validStatuses = ["Pending", "Under Review", "Approved", "Rejected", "Cancelled"];
+      const validStatuses = ["Pending", "Approved", "Rejected", "Cancelled"];
       if (!validStatuses.includes(application_status)) {
         return res.status(400).json({
           success: false,
@@ -265,11 +257,32 @@ export const applicationController = {
         });
       }
 
+      const application = existingApp[0];
+
       // Update application status
       await connection.execute(
         "UPDATE application SET application_status = ? WHERE application_id = ?",
         [application_status, id]
       );
+
+      // If approved, make the stall unavailable
+      if (application_status === "Approved") {
+        await connection.execute(
+          "UPDATE stall SET is_available = 0 WHERE stall_id = ?",
+          [application.stall_id]
+        );
+      }
+
+      // If rejected/cancelled, make sure stall is available (in case it was previously approved)
+      if (
+        application_status === "Rejected" ||
+        application_status === "Cancelled"
+      ) {
+        await connection.execute(
+          "UPDATE stall SET is_available = 1 WHERE stall_id = ?",
+          [application.stall_id]
+        );
+      }
 
       await connection.commit();
 
@@ -356,13 +369,10 @@ export const applicationController = {
           app.*,
           a.applicant_full_name,
           s.stall_no,
-          s.stall_location,
-          bm.area,
-          bm.location as branch_location
+          s.stall_location
         FROM application app
         JOIN applicant a ON app.applicant_id = a.applicant_id
         JOIN stall s ON app.stall_id = s.stall_id
-        JOIN branch_manager bm ON s.branch_manager_id = bm.branch_manager_id
         ORDER BY app.created_at DESC
         LIMIT 10
       `);

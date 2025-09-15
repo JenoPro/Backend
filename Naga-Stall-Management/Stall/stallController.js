@@ -18,7 +18,7 @@ export const getAllStalls = async (req, res) => {
 
     console.log('Fetching stalls for branch manager ID:', branchManagerId)
 
-    // Updated query to include new fields
+    // Query stalls with branch manager information
     const [stalls] = await connection.execute(
       `
       SELECT 
@@ -119,8 +119,8 @@ export const addStall = async (req, res) => {
     const {
       stallNumber, // Frontend field
       price, // Frontend field -> rental_price
-      floor, // Frontend field
-      section, // Frontend field
+      floor, // Frontend field -> floor (simple text)
+      section, // Frontend field -> section (simple text)
       size, // Frontend field -> size
       location, // Frontend field -> stall_location
       description, // Same field name
@@ -142,16 +142,18 @@ export const addStall = async (req, res) => {
     console.log('Adding stall for branch manager ID:', branchManagerId)
     console.log('Frontend data received:', req.body)
 
-    // FIXED VALIDATION - Use the correct frontend field names
-    if (!stallNumber || !price || !location || !size) {
+    // Validation for old structure
+    if (!stallNumber || !price || !location || !size || !floor || !section) {
       return res.status(400).json({
         success: false,
-        message: 'Required fields: stallNumber, price, location, size',
+        message: 'Required fields: stallNumber, price, location, size, floor, section',
         received: {
           stallNumber: !!stallNumber,
           price: !!price,
           location: !!location,
           size: !!size,
+          floor: !!floor,
+          section: !!section,
         },
       })
     }
@@ -175,29 +177,31 @@ export const addStall = async (req, res) => {
     const stallData = {
       stall_no: stallNumber,
       stall_location: location,
-      size: size, // Use size field directly
-      floor: floor || null,
-      section: section || null,
+      size: size,
+      floor: floor, // Simple text field
+      section: section, // Simple text field
+      branch_manager_id: branchManagerId,
       rental_price: parseFloat(price),
       price_type: priceType || 'Fixed Price',
       status: isAvailable ? 'Active' : 'Inactive',
       stamp: 'APPROVED',
       description: description || null,
       stall_image: image || null,
+      is_available: isAvailable ? 1 : 0,
     }
 
     console.log('Mapped database data:', stallData)
 
-    // Insert new stall with branch manager ID
+    // Insert new stall with old structure
     const [result] = await connection.execute(
       `
       INSERT INTO stall (
         branch_manager_id, stall_no, stall_location, size, floor, section,
-        rental_price, price_type, status, stamp, description, stall_image
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        rental_price, price_type, status, stamp, description, stall_image, is_available
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
       [
-        branchManagerId,
+        stallData.branch_manager_id,
         stallData.stall_no,
         stallData.stall_location,
         stallData.size,
@@ -209,10 +213,11 @@ export const addStall = async (req, res) => {
         stallData.stamp,
         stallData.description,
         stallData.stall_image,
+        stallData.is_available,
       ],
     )
 
-    // Get the created stall with branch manager info
+    // Get the created stall with complete information
     const [newStall] = await connection.execute(
       `
       SELECT 
@@ -281,13 +286,6 @@ export const updateStall = async (req, res) => {
     console.log('- Query result:', existingStall)
     console.log('- Found stalls:', existingStall.length)
 
-    // Also check if stall exists at all (debugging)
-    const [anyStall] = await connection.execute(
-      'SELECT stall_id, branch_manager_id FROM stall WHERE stall_id = ?',
-      [id],
-    )
-    console.log('- Stall exists with any owner:', anyStall)
-
     if (existingStall.length === 0) {
       console.log('❌ Stall not found or permission denied')
       return res.status(404).json({
@@ -304,9 +302,9 @@ export const updateStall = async (req, res) => {
       image: 'stall_image',
       isAvailable: 'status', // Special handling needed
       priceType: 'price_type',
-      floor: 'floor',
-      section: 'section',
-      size: 'size', // Frontend size maps to database size column
+      floor: 'floor', // Simple text field
+      section: 'section', // Simple text field
+      size: 'size',
       description: 'description',
       stamp: 'stamp',
     }
@@ -341,6 +339,9 @@ export const updateStall = async (req, res) => {
           updateValues.push(parseFloat(updateData[frontendField]))
         } else if (frontendField === 'isAvailable') {
           updateValues.push(updateData[frontendField] ? 'Active' : 'Inactive')
+          // Also update is_available flag
+          updateFields.push('is_available = ?')
+          updateValues.push(updateData[frontendField] ? 1 : 0)
         } else {
           updateValues.push(updateData[frontendField])
         }
@@ -355,16 +356,16 @@ export const updateStall = async (req, res) => {
     }
 
     // Add WHERE clause parameters
-    updateValues.push(id, branchManagerId)
+    updateValues.push(id)
 
-    const updateQuery = `UPDATE stall SET ${updateFields.join(', ')} WHERE stall_id = ? AND branch_manager_id = ?`
+    const updateQuery = `UPDATE stall SET ${updateFields.join(', ')} WHERE stall_id = ?`
 
     console.log('Update query:', updateQuery)
     console.log('Update values:', updateValues)
 
     await connection.execute(updateQuery, updateValues)
 
-    // Get updated stall with branch manager info
+    // Get updated stall with complete information
     const [updatedStall] = await connection.execute(
       `
       SELECT 
@@ -438,10 +439,7 @@ export const deleteStall = async (req, res) => {
     }
 
     // Delete the stall
-    await connection.execute('DELETE FROM stall WHERE stall_id = ? AND branch_manager_id = ?', [
-      id,
-      branchManagerId,
-    ])
+    await connection.execute('DELETE FROM stall WHERE stall_id = ?', [id])
 
     console.log('✅ Stall deleted successfully:', existingStall[0].stall_no)
 
@@ -479,10 +477,13 @@ export const getAvailableStalls = async (req, res) => {
 
     const [stalls] = await connection.execute(
       `
-      SELECT s.*, bm.area, bm.location as branch_location
+      SELECT 
+        s.*, 
+        bm.area, 
+        bm.location as branch_location
       FROM stall s
       LEFT JOIN branch_manager bm ON s.branch_manager_id = bm.branch_manager_id
-      WHERE s.branch_manager_id = ? AND s.status = 'Active'
+      WHERE s.branch_manager_id = ? AND s.status = 'Active' AND s.is_available = 1
       ORDER BY s.stall_location, s.stall_no
     `,
       [branchManagerId],
@@ -510,7 +511,7 @@ export const getAvailableStalls = async (req, res) => {
 export const getStallsByFilter = async (req, res) => {
   let connection
   try {
-    const { location, status, search, minPrice, maxPrice } = req.query
+    const { location, status, search, minPrice, maxPrice, floor, section } = req.query
     const branchManagerId = req.user?.branchManagerId || req.user?.userId
 
     if (!branchManagerId) {
@@ -547,14 +548,26 @@ export const getStallsByFilter = async (req, res) => {
       queryParams.push(status)
     }
 
-    // Search filter (search in stall number, location, description, section, floor)
+    // Floor filter (simple text field)
+    if (floor) {
+      query += ' AND s.floor = ?'
+      queryParams.push(floor)
+    }
+
+    // Section filter (simple text field)
+    if (section) {
+      query += ' AND s.section = ?'
+      queryParams.push(section)
+    }
+
+    // Search filter (search in stall number, location, description, floor, section)
     if (search) {
       query += ` AND (
         s.stall_no LIKE ? OR 
         s.stall_location LIKE ? OR 
         s.description LIKE ? OR
-        s.section LIKE ? OR
-        s.floor LIKE ?
+        s.floor LIKE ? OR
+        s.section LIKE ?
       )`
       const searchPattern = `%${search}%`
       queryParams.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern)
@@ -586,6 +599,8 @@ export const getStallsByFilter = async (req, res) => {
         search,
         minPrice,
         maxPrice,
+        floor,
+        section,
       },
     })
   } catch (error) {

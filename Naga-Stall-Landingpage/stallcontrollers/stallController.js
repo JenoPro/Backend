@@ -15,7 +15,7 @@ export const getAllStalls = async (req, res) => {
         bm.last_name as manager_last_name
       FROM stall s
       LEFT JOIN branch_manager bm ON s.branch_manager_id = bm.branch_manager_id
-      WHERE s.status = 'Active'
+      WHERE s.status = 'Active' AND s.is_available = 1
       ORDER BY s.created_at DESC
     `)
 
@@ -53,7 +53,7 @@ export const getStallById = async (req, res) => {
         bm.last_name as manager_last_name
       FROM stall s
       LEFT JOIN branch_manager bm ON s.branch_manager_id = bm.branch_manager_id
-      WHERE s.stall_id = ? AND s.status = 'Active'
+      WHERE s.stall_id = ? AND s.status = 'Active' AND s.is_available = 1
     `,
       [id],
     )
@@ -82,7 +82,7 @@ export const getStallById = async (req, res) => {
   }
 }
 
-// Get available areas (NEW)
+// Get available areas
 export const getAvailableAreas = async (req, res) => {
   let connection
   try {
@@ -92,7 +92,7 @@ export const getAvailableAreas = async (req, res) => {
       SELECT DISTINCT bm.area, COUNT(s.stall_id) as stall_count
       FROM branch_manager bm
       LEFT JOIN stall s ON bm.branch_manager_id = s.branch_manager_id 
-        AND s.status = 'Active'
+        AND s.status = 'Active' AND s.is_available = 1
       WHERE bm.status = 'Active'
       GROUP BY bm.area
       ORDER BY bm.area
@@ -115,7 +115,7 @@ export const getAvailableAreas = async (req, res) => {
   }
 }
 
-// Get stalls by area (NEW)
+// Get stalls by area
 export const getStallsByArea = async (req, res) => {
   let connection
   try {
@@ -139,7 +139,7 @@ export const getStallsByArea = async (req, res) => {
         bm.last_name as manager_last_name
       FROM stall s
       LEFT JOIN branch_manager bm ON s.branch_manager_id = bm.branch_manager_id
-      WHERE bm.area = ? AND s.status = 'Active'
+      WHERE bm.area = ? AND s.status = 'Active' AND s.is_available = 1
       ORDER BY s.created_at DESC
     `,
       [area]
@@ -164,7 +164,7 @@ export const getStallsByArea = async (req, res) => {
   }
 }
 
-// Get locations within an area (NEW)
+// Get locations within an area
 export const getLocationsByArea = async (req, res) => {
   let connection
   try {
@@ -183,7 +183,7 @@ export const getLocationsByArea = async (req, res) => {
       SELECT DISTINCT bm.location, COUNT(s.stall_id) as stall_count
       FROM branch_manager bm
       LEFT JOIN stall s ON bm.branch_manager_id = s.branch_manager_id 
-        AND s.status = 'Active'
+        AND s.status = 'Active' AND s.is_available = 1
       WHERE bm.area = ? AND bm.status = 'Active'
       GROUP BY bm.location
       ORDER BY bm.location
@@ -208,11 +208,11 @@ export const getLocationsByArea = async (req, res) => {
   }
 }
 
-// Get filtered stalls (NEW - Enhanced filtering)
+// Get filtered stalls
 export const getFilteredStalls = async (req, res) => {
   let connection
   try {
-    const { area, location, section, minPrice, maxPrice, search } = req.query
+    const { area, location, section, floor, minPrice, maxPrice, search } = req.query
     connection = await createConnection()
 
     let query = `
@@ -224,7 +224,7 @@ export const getFilteredStalls = async (req, res) => {
         bm.last_name as manager_last_name
       FROM stall s
       LEFT JOIN branch_manager bm ON s.branch_manager_id = bm.branch_manager_id
-      WHERE s.status = 'Active'
+      WHERE s.status = 'Active' AND s.is_available = 1
     `
     const queryParams = []
 
@@ -240,7 +240,13 @@ export const getFilteredStalls = async (req, res) => {
       queryParams.push(location)
     }
 
-    // Section filter
+    // Floor filter (using text field)
+    if (floor) {
+      query += ' AND s.floor = ?'
+      queryParams.push(floor)
+    }
+
+    // Section filter (using text field)
     if (section) {
       query += ' AND s.section = ?'
       queryParams.push(section)
@@ -279,7 +285,7 @@ export const getFilteredStalls = async (req, res) => {
       message: 'Filtered stalls retrieved successfully',
       data: stalls,
       count: stalls.length,
-      filters: { area, location, section, minPrice, maxPrice, search },
+      filters: { area, location, section, floor, minPrice, maxPrice, search },
     })
   } catch (error) {
     console.error('❌ Get filtered stalls error:', error)
@@ -293,7 +299,7 @@ export const getFilteredStalls = async (req, res) => {
   }
 }
 
-// Legacy routes for backward compatibility
+// Get stalls by location (legacy compatibility)
 export const getStallsByLocation = async (req, res) => {
   let connection
   try {
@@ -309,7 +315,7 @@ export const getStallsByLocation = async (req, res) => {
         bm.last_name as manager_last_name
       FROM stall s
       LEFT JOIN branch_manager bm ON s.branch_manager_id = bm.branch_manager_id
-      WHERE s.status = 'Active'
+      WHERE s.status = 'Active' AND s.is_available = 1
     `
     const queryParams = []
 
@@ -341,6 +347,7 @@ export const getStallsByLocation = async (req, res) => {
   }
 }
 
+// Get available markets (legacy compatibility)
 export const getAvailableMarkets = async (req, res) => {
   let connection
   try {
@@ -350,7 +357,7 @@ export const getAvailableMarkets = async (req, res) => {
       SELECT DISTINCT bm.location as market, COUNT(s.stall_id) as stall_count
       FROM branch_manager bm
       LEFT JOIN stall s ON bm.branch_manager_id = s.branch_manager_id 
-        AND s.status = 'Active'
+        AND s.status = 'Active' AND s.is_available = 1
       WHERE bm.status = 'Active'
       GROUP BY bm.location
       ORDER BY bm.location

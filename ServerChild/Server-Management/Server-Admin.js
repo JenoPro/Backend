@@ -2,12 +2,13 @@ import express from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
 import process from 'process'
-import { initializeDatabase } from './Naga-Stall-Management/config/database.js'
-import { corsConfig } from './Naga-Stall-Management/config/cors.js'
-import adminRoutes from './Naga-Stall-Management/Admin/adminRoutes.js'
-import stallRoutes from './Naga-Stall-Management/Stall/stallRoutes.js'
-import { testDb } from './Naga-Stall-Management/Admin/adminController.js'
-import { errorHandler } from './Naga-Stall-Management/middleware/errorHandler.js'
+import { initializeDatabase } from '../../Naga-Stall-Management/config/database.js'
+import { corsConfig } from '../../Naga-Stall-Management/config/cors.js'
+import adminRoutes from '../../Naga-Stall-Management/Admin/adminRoutes.js'
+import stallRoutes from '../../Naga-Stall-Management/Stall/stallRoutes.js'
+import areaRoutes from '../../Naga-Stall-Management/Area/areaRoutes.js'
+import { testDb } from '../../Naga-Stall-Management/Admin/adminController.js'
+import { errorHandler } from '../../Naga-Stall-Management/middleware/errorHandler.js'
 
 // Load environment variables from .env file
 dotenv.config()
@@ -22,19 +23,7 @@ app.use(express.json())
 // Routes
 app.use('/api/auth', adminRoutes) // Authentication routes for branch managers
 app.use('/api/stalls', stallRoutes) // Stall management routes (with authentication)
-
-// Direct routes for easier access
-app.get('/api/areas', (req, res) => {
-  import('./Naga-Stall-Management/Admin/adminController.js').then(({ getAreas }) => {
-    getAreas(req, res)
-  })
-})
-
-app.get('/api/branches/:area', (req, res) => {
-  import('./Naga-Stall-Management/Admin/adminController.js').then(({ getBranchesByArea }) => {
-    getBranchesByArea(req, res)
-  })
-})
+app.use('/api/areas', areaRoutes) // Area information routes
 
 // Test database connection endpoint
 app.get('/api/test-db', testDb)
@@ -76,8 +65,11 @@ app.listen(PORT, async () => {
 
   // Area and Branch endpoints
   console.log('   === LOCATION ENDPOINTS ===')
-  console.log('   GET  /api/areas - Get available areas (from branch_manager table)')
-  console.log('   GET  /api/branches/:area - Get branches by area (from branch_manager table)')
+  console.log('   GET  /api/areas - Get all areas/branches (from branch_manager table)')
+  console.log('   GET  /api/areas/cities - Get unique cities')
+  console.log('   GET  /api/areas/city/:city - Get branches by city')
+  console.log('   GET  /api/areas/locations/:city - Get locations by city')
+  console.log('   GET  /api/areas/:id - Get area by ID')
   console.log('')
 
   // Stall management endpoints (protected)

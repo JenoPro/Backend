@@ -96,6 +96,10 @@ app.delete('/api/stalls/:id', authMiddleware.authenticateToken, deleteStall)  //
 app.get('/api/public/stalls', getAllStallsPublic)  // Get all stalls publicly
 app.get('/api/public/stalls/:id', getStallByIdPublic)  // Get specific stall publicly
 
+// Landing page API endpoints (no authentication required)
+app.use('/api/applicants', applicantRoutes)  // Direct access to applicant routes
+app.use('/api/applications', applicationRoutes)  // Direct access to application routes
+
 // Area and branch endpoints
 app.get('/api/areas', getAreas)
 app.get('/api/branches/:area', getBranchesByArea)
