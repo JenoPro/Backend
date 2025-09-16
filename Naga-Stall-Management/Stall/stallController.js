@@ -18,24 +18,34 @@ export const getAllStalls = async (req, res) => {
 
     console.log('Fetching stalls for branch manager ID:', branchManagerId)
 
-    // Query stalls with branch manager information
+    // Query stalls with proper relationship through section -> floor -> branch_manager
     const [stalls] = await connection.execute(
       `
       SELECT 
         s.*,
+        s.stall_id as id,
+        sec.section_name,
+        sec.section_code,
+        f.floor_name,
+        f.floor_number,
         bm.first_name as manager_first_name,
         bm.last_name as manager_last_name,
         bm.area,
         bm.location as branch_location
       FROM stall s
-      LEFT JOIN branch_manager bm ON s.branch_manager_id = bm.branch_manager_id
-      WHERE s.branch_manager_id = ?
+      INNER JOIN section sec ON s.section_id = sec.section_id
+      INNER JOIN floor f ON sec.floor_id = f.floor_id
+      INNER JOIN branch_manager bm ON f.branch_manager_id = bm.branch_manager_id
+      WHERE bm.branch_manager_id = ?
       ORDER BY s.created_at DESC
     `,
       [branchManagerId],
     )
 
     console.log(`Found ${stalls.length} stalls for branch manager ID: ${branchManagerId}`)
+    
+    // Debug: Check what stall IDs we're getting
+    console.log('🔍 Stall IDs retrieved:', stalls.map(s => ({ id: s.stall_id, no: s.stall_no })))
 
     res.json({
       success: true,
@@ -76,13 +86,20 @@ export const getStallById = async (req, res) => {
       `
       SELECT 
         s.*,
+        s.stall_id as id,
+        sec.section_name,
+        sec.section_code,
+        f.floor_name,
+        f.floor_number,
         bm.first_name as manager_first_name,
         bm.last_name as manager_last_name,
         bm.area,
         bm.location as branch_location
       FROM stall s
-      LEFT JOIN branch_manager bm ON s.branch_manager_id = bm.branch_manager_id
-      WHERE s.stall_id = ? AND s.branch_manager_id = ?
+      INNER JOIN section sec ON s.section_id = sec.section_id
+      INNER JOIN floor f ON sec.floor_id = f.floor_id
+      INNER JOIN branch_manager bm ON f.branch_manager_id = bm.branch_manager_id
+      WHERE s.stall_id = ? AND bm.branch_manager_id = ?
     `,
       [id, branchManagerId],
     )
@@ -115,20 +132,6 @@ export const getStallById = async (req, res) => {
 export const addStall = async (req, res) => {
   let connection
   try {
-    // Map frontend field names to backend field names
-    const {
-      stallNumber, // Frontend field
-      price, // Frontend field -> rental_price
-      floor, // Frontend field -> floor (simple text)
-      section, // Frontend field -> section (simple text)
-      size, // Frontend field -> size
-      location, // Frontend field -> stall_location
-      description, // Same field name
-      image, // Frontend field -> stall_image
-      isAvailable, // Frontend field -> status
-      priceType, // Frontend field -> price_type
-    } = req.body
-
     // Get the branch manager ID from the authenticated user
     const branchManagerId = req.user?.branchManagerId || req.user?.userId
 
@@ -141,20 +144,52 @@ export const addStall = async (req, res) => {
 
     console.log('Adding stall for branch manager ID:', branchManagerId)
     console.log('Frontend data received:', req.body)
+    console.log('Available fields:', Object.keys(req.body))
 
-    // Validation for old structure
-    if (!stallNumber || !price || !location || !size || !floor || !section) {
+    // Map frontend field names to backend field names - be flexible with field names
+    const {
+      stallNumber, 
+      stallNo = stallNumber, // Allow both stallNumber and stallNo
+      price, 
+      rental_price = price, // Allow both price and rental_price
+      floor, 
+      section, 
+      size, 
+      location, 
+      stall_location = location, // Allow both location and stall_location
+      description, 
+      image, 
+      stall_image = image, // Allow both image and stall_image
+      isAvailable = true, // Default to available
+      status, // Allow direct status
+      priceType = 'Fixed Price', // Default price type
+      price_type = priceType, // Allow both priceType and price_type
+    } = req.body
+
+    // Use the mapped values
+    const stallNo_final = stallNo || stallNumber
+    const price_final = rental_price || price
+    const location_final = stall_location || location
+    const image_final = stall_image || image
+    const priceType_final = price_type || priceType || 'Fixed Price'
+    
+    // More flexible validation - floor and section are not required since they don't exist in DB
+    if (!stallNo_final || !price_final || !location_final || !size) {
       return res.status(400).json({
         success: false,
-        message: 'Required fields: stallNumber, price, location, size, floor, section',
+        message: 'Required fields: stallNumber/stallNo, price/rental_price, location/stall_location, size',
         received: {
           stallNumber: !!stallNumber,
+          stallNo: !!stallNo,
           price: !!price,
+          rental_price: !!rental_price,
           location: !!location,
+          stall_location: !!stall_location,
           size: !!size,
           floor: !!floor,
           section: !!section,
         },
+        availableFields: Object.keys(req.body),
       })
     }
 
@@ -162,8 +197,13 @@ export const addStall = async (req, res) => {
 
     // Check if stall number already exists for this branch manager
     const [existingStall] = await connection.execute(
-      'SELECT stall_id FROM stall WHERE stall_no = ? AND branch_manager_id = ?',
-      [stallNumber, branchManagerId],
+      `SELECT s.stall_id 
+       FROM stall s
+       INNER JOIN section sec ON s.section_id = sec.section_id
+       INNER JOIN floor f ON sec.floor_id = f.floor_id
+       INNER JOIN branch_manager bm ON f.branch_manager_id = bm.branch_manager_id
+       WHERE s.stall_no = ? AND bm.branch_manager_id = ?`,
+      [stallNo_final, branchManagerId],
     )
 
     if (existingStall.length > 0) {
@@ -175,38 +215,36 @@ export const addStall = async (req, res) => {
 
     // Map frontend fields to database columns
     const stallData = {
-      stall_no: stallNumber,
-      stall_location: location,
+      stall_no: stallNo_final,
+      stall_location: location_final,
       size: size,
-      floor: floor, // Simple text field
-      section: section, // Simple text field
-      branch_manager_id: branchManagerId,
-      rental_price: parseFloat(price),
-      price_type: priceType || 'Fixed Price',
-      status: isAvailable ? 'Active' : 'Inactive',
+      // Note: floor and section are not database columns in the current schema
+      section_id: 1, // Default section_id - this should be properly mapped in the future
+      rental_price: parseFloat(price_final),
+      price_type: priceType_final,
+      status: isAvailable !== false ? 'Active' : 'Inactive',
       stamp: 'APPROVED',
       description: description || null,
-      stall_image: image || null,
-      is_available: isAvailable ? 1 : 0,
+      stall_image: image_final || null,
+      is_available: isAvailable !== false ? 1 : 0,
     }
 
     console.log('Mapped database data:', stallData)
 
-    // Insert new stall with old structure
+    // Insert new stall with proper section_id
     const [result] = await connection.execute(
       `
       INSERT INTO stall (
-        branch_manager_id, stall_no, stall_location, size, floor, section,
+        section_id, stall_no, stall_location, size, dimensions,
         rental_price, price_type, status, stamp, description, stall_image, is_available
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
       [
-        stallData.branch_manager_id,
+        stallData.section_id,
         stallData.stall_no,
         stallData.stall_location,
         stallData.size,
-        stallData.floor,
-        stallData.section,
+        null, // dimensions field
         stallData.rental_price,
         stallData.price_type,
         stallData.status,
@@ -217,20 +255,49 @@ export const addStall = async (req, res) => {
       ],
     )
 
+    console.log('🔍 Insert result:', result)
+    console.log('🔍 Insert ID:', result.insertId)
+
+    // If insertId is 0 or null, try to get the ID using LAST_INSERT_ID()
+    let stallId = result.insertId
+    if (!stallId || stallId === 0) {
+      console.log('⚠️ Insert ID is 0 or null, trying LAST_INSERT_ID()')
+      const [lastIdResult] = await connection.execute('SELECT LAST_INSERT_ID() as id')
+      stallId = lastIdResult[0]?.id
+      console.log('🔍 LAST_INSERT_ID result:', stallId)
+    }
+
+    // If we still don't have a valid ID, try to find it by stall_no
+    if (!stallId || stallId === 0) {
+      console.log('⚠️ Still no valid ID, searching by stall_no:', stallData.stall_no)
+      const [findStallResult] = await connection.execute(
+        'SELECT stall_id FROM stall WHERE stall_no = ? ORDER BY created_at DESC LIMIT 1',
+        [stallData.stall_no]
+      )
+      stallId = findStallResult[0]?.stall_id
+      console.log('🔍 Found stall by number:', stallId)
+    }
+
     // Get the created stall with complete information
     const [newStall] = await connection.execute(
       `
       SELECT 
         s.*,
+        sec.section_name,
+        sec.section_code,
+        f.floor_name,
+        f.floor_number,
         bm.first_name as manager_first_name,
         bm.last_name as manager_last_name,
         bm.area,
         bm.location as branch_location
       FROM stall s
-      LEFT JOIN branch_manager bm ON s.branch_manager_id = bm.branch_manager_id
+      INNER JOIN section sec ON s.section_id = sec.section_id
+      INNER JOIN floor f ON sec.floor_id = f.floor_id
+      INNER JOIN branch_manager bm ON f.branch_manager_id = bm.branch_manager_id
       WHERE s.stall_id = ?
     `,
-      [result.insertId],
+      [stallId],
     )
 
     console.log('✅ Stall added successfully for branch manager:', branchManagerId)
@@ -279,7 +346,12 @@ export const updateStall = async (req, res) => {
     // Check if stall exists and belongs to this branch manager
     console.log('🔍 Checking if stall exists and belongs to branch manager...')
     const [existingStall] = await connection.execute(
-      'SELECT stall_id, branch_manager_id FROM stall WHERE stall_id = ? AND branch_manager_id = ?',
+      `SELECT s.stall_id, s.stall_no 
+       FROM stall s
+       INNER JOIN section sec ON s.section_id = sec.section_id
+       INNER JOIN floor f ON sec.floor_id = f.floor_id
+       INNER JOIN branch_manager bm ON f.branch_manager_id = bm.branch_manager_id
+       WHERE s.stall_id = ? AND bm.branch_manager_id = ?`,
       [id, branchManagerId],
     )
 
@@ -302,8 +374,8 @@ export const updateStall = async (req, res) => {
       image: 'stall_image',
       isAvailable: 'status', // Special handling needed
       priceType: 'price_type',
-      floor: 'floor', // Simple text field
-      section: 'section', // Simple text field
+      // Note: floor and section are not database columns in the current schema
+      // they are handled through section_id relationships
       size: 'size',
       description: 'description',
       stamp: 'stamp',
@@ -312,7 +384,12 @@ export const updateStall = async (req, res) => {
     // If updating stallNumber (stall_no), check if it already exists for this branch manager
     if (updateData.stallNumber) {
       const [duplicateCheck] = await connection.execute(
-        'SELECT stall_id FROM stall WHERE stall_no = ? AND branch_manager_id = ? AND stall_id != ?',
+        `SELECT s.stall_id 
+         FROM stall s
+         INNER JOIN section sec ON s.section_id = sec.section_id
+         INNER JOIN floor f ON sec.floor_id = f.floor_id
+         INNER JOIN branch_manager bm ON f.branch_manager_id = bm.branch_manager_id
+         WHERE s.stall_no = ? AND bm.branch_manager_id = ? AND s.stall_id != ?`,
         [updateData.stallNumber, branchManagerId, id],
       )
 
@@ -370,12 +447,18 @@ export const updateStall = async (req, res) => {
       `
       SELECT 
         s.*,
+        sec.section_name,
+        sec.section_code,
+        f.floor_name,
+        f.floor_number,
         bm.first_name as manager_first_name,
         bm.last_name as manager_last_name,
         bm.area,
         bm.location as branch_location
       FROM stall s
-      LEFT JOIN branch_manager bm ON s.branch_manager_id = bm.branch_manager_id
+      INNER JOIN section sec ON s.section_id = sec.section_id
+      INNER JOIN floor f ON sec.floor_id = f.floor_id
+      INNER JOIN branch_manager bm ON f.branch_manager_id = bm.branch_manager_id
       WHERE s.stall_id = ?
     `,
       [id],
@@ -427,7 +510,12 @@ export const deleteStall = async (req, res) => {
 
     // Check if stall exists and belongs to this branch manager
     const [existingStall] = await connection.execute(
-      'SELECT stall_id, stall_no FROM stall WHERE stall_id = ? AND branch_manager_id = ?',
+      `SELECT s.stall_id, s.stall_no 
+       FROM stall s
+       INNER JOIN section sec ON s.section_id = sec.section_id
+       INNER JOIN floor f ON sec.floor_id = f.floor_id
+       INNER JOIN branch_manager bm ON f.branch_manager_id = bm.branch_manager_id
+       WHERE s.stall_id = ? AND bm.branch_manager_id = ?`,
       [id, branchManagerId],
     )
 

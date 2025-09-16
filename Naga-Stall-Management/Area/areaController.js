@@ -231,3 +231,108 @@ export async function getLocationsByCity(req, res) {
     if (connection) await connection.end()
   }
 }
+
+// Get floors for the authenticated branch manager
+export async function getFloors(req, res) {
+  let connection
+  try {
+    connection = await createConnection()
+
+    // Get the branch manager ID from the authenticated user
+    const branchManagerId = req.user?.branchManagerId || req.user?.userId
+
+    if (!branchManagerId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Branch manager ID not found in authentication token',
+      })
+    }
+
+    const [floors] = await connection.execute(
+      `
+      SELECT 
+        f.floor_id,
+        f.floor_name,
+        f.floor_number,
+        f.status,
+        f.created_at,
+        f.updated_at
+      FROM floor f
+      WHERE f.branch_manager_id = ? AND f.status = 'Active'
+      ORDER BY f.floor_number ASC
+    `,
+      [branchManagerId],
+    )
+
+    res.json({
+      success: true,
+      data: floors,
+      message: 'Floors retrieved successfully',
+      branchManagerId: branchManagerId,
+      count: floors.length,
+    })
+  } catch (error) {
+    console.error('Error fetching floors:', error)
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch floors',
+      error: error.message,
+    })
+  } finally {
+    if (connection) await connection.end()
+  }
+}
+
+// Get sections for the authenticated branch manager
+export async function getSections(req, res) {
+  let connection
+  try {
+    connection = await createConnection()
+
+    // Get the branch manager ID from the authenticated user
+    const branchManagerId = req.user?.branchManagerId || req.user?.userId
+
+    if (!branchManagerId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Branch manager ID not found in authentication token',
+      })
+    }
+
+    const [sections] = await connection.execute(
+      `
+      SELECT 
+        s.section_id,
+        s.section_name,
+        s.section_code,
+        s.status,
+        s.created_at,
+        s.updated_at,
+        f.floor_name,
+        f.floor_number
+      FROM section s
+      INNER JOIN floor f ON s.floor_id = f.floor_id
+      WHERE f.branch_manager_id = ? AND s.status = 'Active'
+      ORDER BY f.floor_number ASC, s.section_name ASC
+    `,
+      [branchManagerId],
+    )
+
+    res.json({
+      success: true,
+      data: sections,
+      message: 'Sections retrieved successfully',
+      branchManagerId: branchManagerId,
+      count: sections.length,
+    })
+  } catch (error) {
+    console.error('Error fetching sections:', error)
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch sections',
+      error: error.message,
+    })
+  } finally {
+    if (connection) await connection.end()
+  }
+}

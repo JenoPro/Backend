@@ -9,12 +9,19 @@ export const getAllStalls = async (req, res) => {
     const [stalls] = await connection.execute(`
       SELECT 
         s.*,
+        s.stall_id as id,
+        sec.section_name,
+        sec.section_code,
+        f.floor_name,
+        f.floor_number,
         bm.area,
         bm.location as branch_location,
         bm.first_name as manager_first_name,
         bm.last_name as manager_last_name
       FROM stall s
-      LEFT JOIN branch_manager bm ON s.branch_manager_id = bm.branch_manager_id
+      INNER JOIN section sec ON s.section_id = sec.section_id
+      INNER JOIN floor f ON sec.floor_id = f.floor_id
+      INNER JOIN branch_manager bm ON f.branch_manager_id = bm.branch_manager_id
       WHERE s.status = 'Active' AND s.is_available = 1
       ORDER BY s.created_at DESC
     `)
@@ -47,12 +54,19 @@ export const getStallById = async (req, res) => {
       `
       SELECT 
         s.*,
+        s.stall_id as id,
+        sec.section_name,
+        sec.section_code,
+        f.floor_name,
+        f.floor_number,
         bm.area,
         bm.location as branch_location,
         bm.first_name as manager_first_name,
         bm.last_name as manager_last_name
       FROM stall s
-      LEFT JOIN branch_manager bm ON s.branch_manager_id = bm.branch_manager_id
+      INNER JOIN section sec ON s.section_id = sec.section_id
+      INNER JOIN floor f ON sec.floor_id = f.floor_id
+      INNER JOIN branch_manager bm ON f.branch_manager_id = bm.branch_manager_id
       WHERE s.stall_id = ? AND s.status = 'Active' AND s.is_available = 1
     `,
       [id],
@@ -91,7 +105,9 @@ export const getAvailableAreas = async (req, res) => {
     const [areas] = await connection.execute(`
       SELECT DISTINCT bm.area, COUNT(s.stall_id) as stall_count
       FROM branch_manager bm
-      LEFT JOIN stall s ON bm.branch_manager_id = s.branch_manager_id 
+      LEFT JOIN floor f ON bm.branch_manager_id = f.branch_manager_id
+      LEFT JOIN section sec ON f.floor_id = sec.floor_id
+      LEFT JOIN stall s ON sec.section_id = s.section_id 
         AND s.status = 'Active' AND s.is_available = 1
       WHERE bm.status = 'Active'
       GROUP BY bm.area
@@ -133,12 +149,19 @@ export const getStallsByArea = async (req, res) => {
       `
       SELECT 
         s.*,
+        s.stall_id as id,
+        sec.section_name,
+        sec.section_code,
+        f.floor_name,
+        f.floor_number,
         bm.area,
         bm.location as branch_location,
         bm.first_name as manager_first_name,
         bm.last_name as manager_last_name
       FROM stall s
-      LEFT JOIN branch_manager bm ON s.branch_manager_id = bm.branch_manager_id
+      INNER JOIN section sec ON s.section_id = sec.section_id
+      INNER JOIN floor f ON sec.floor_id = f.floor_id
+      INNER JOIN branch_manager bm ON f.branch_manager_id = bm.branch_manager_id
       WHERE bm.area = ? AND s.status = 'Active' AND s.is_available = 1
       ORDER BY s.created_at DESC
     `,
@@ -182,7 +205,9 @@ export const getLocationsByArea = async (req, res) => {
       `
       SELECT DISTINCT bm.location, COUNT(s.stall_id) as stall_count
       FROM branch_manager bm
-      LEFT JOIN stall s ON bm.branch_manager_id = s.branch_manager_id 
+      LEFT JOIN floor f ON bm.branch_manager_id = f.branch_manager_id
+      LEFT JOIN section sec ON f.floor_id = sec.floor_id
+      LEFT JOIN stall s ON sec.section_id = s.section_id 
         AND s.status = 'Active' AND s.is_available = 1
       WHERE bm.area = ? AND bm.status = 'Active'
       GROUP BY bm.location
@@ -218,12 +243,19 @@ export const getFilteredStalls = async (req, res) => {
     let query = `
       SELECT 
         s.*,
+        s.stall_id as id,
+        sec.section_name,
+        sec.section_code,
+        f.floor_name,
+        f.floor_number,
         bm.area,
         bm.location as branch_location,
         bm.first_name as manager_first_name,
         bm.last_name as manager_last_name
       FROM stall s
-      LEFT JOIN branch_manager bm ON s.branch_manager_id = bm.branch_manager_id
+      INNER JOIN section sec ON s.section_id = sec.section_id
+      INNER JOIN floor f ON sec.floor_id = f.floor_id
+      INNER JOIN branch_manager bm ON f.branch_manager_id = bm.branch_manager_id
       WHERE s.status = 'Active' AND s.is_available = 1
     `
     const queryParams = []
@@ -240,15 +272,15 @@ export const getFilteredStalls = async (req, res) => {
       queryParams.push(location)
     }
 
-    // Floor filter (using text field)
+    // Floor filter (now using the proper floor table)
     if (floor) {
-      query += ' AND s.floor = ?'
+      query += ' AND f.floor_name = ?'
       queryParams.push(floor)
     }
 
-    // Section filter (using text field)
+    // Section filter (now using the proper section table)
     if (section) {
-      query += ' AND s.section = ?'
+      query += ' AND sec.section_name = ?'
       queryParams.push(section)
     }
 
@@ -263,14 +295,14 @@ export const getFilteredStalls = async (req, res) => {
       queryParams.push(parseFloat(maxPrice))
     }
 
-    // Search filter
+    // Search filter (updated to use proper table fields)
     if (search) {
       query += ` AND (
         s.stall_no LIKE ? OR 
         s.stall_location LIKE ? OR 
         s.description LIKE ? OR
-        s.section LIKE ? OR
-        s.floor LIKE ?
+        sec.section_name LIKE ? OR
+        f.floor_name LIKE ?
       )`
       const searchPattern = `%${search}%`
       queryParams.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern)

@@ -31,6 +31,15 @@ import {
   testDb
 } from './Naga-Stall-Management/Admin/adminController.js'
 
+// Import area controller functions
+import {
+  getAllAreas,
+  getAreasByCity,
+  getLocationsByCity,
+  getFloors,
+  getSections
+} from './Naga-Stall-Management/Area/areaController.js'
+
 // Import management stall functions for CRUD operations (with authentication)
 import {
   addStall,
@@ -104,8 +113,37 @@ app.use('/api/applications', applicationRoutes)  // Direct access to application
 app.get('/api/areas', getAreas)
 app.get('/api/branches/:area', getBranchesByArea)
 
+// Floor and Section endpoints (require authentication)
+app.get('/api/floors', authMiddleware.authenticateToken, getFloors)
+app.get('/api/sections', authMiddleware.authenticateToken, getSections)
+
 // Utility endpoints
 app.get('/api/test-db', testDb)
+app.get('/api/check-table', async (req, res) => {
+  try {
+    const { createConnection } = await import('./Naga-Stall-Management/config/database.js')
+    const connection = await createConnection()
+    
+    // Check stall table structure
+    const [columns] = await connection.execute('DESCRIBE stall')
+    
+    // Check some sample data
+    const [sampleData] = await connection.execute('SELECT * FROM stall LIMIT 3')
+    
+    await connection.end()
+    
+    res.json({
+      success: true,
+      tableStructure: columns,
+      sampleData: sampleData
+    })
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    })
+  }
+})
 app.get('/api/health', async (req, res) => {
   try {
     // Simple health check without database connection test to avoid conflicts
