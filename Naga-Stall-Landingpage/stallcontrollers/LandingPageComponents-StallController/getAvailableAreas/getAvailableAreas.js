@@ -7,7 +7,7 @@ export const getAvailableAreas = async (req, res) => {
     connection = await createConnection()
 
     const [areas] = await connection.execute(
-      'SELECT DISTINCT area FROM branch_manager WHERE status = "Active" ORDER BY area',
+      'SELECT DISTINCT area FROM branch WHERE status = "Active" ORDER BY area',
     )
 
     // Format the data to match frontend expectations

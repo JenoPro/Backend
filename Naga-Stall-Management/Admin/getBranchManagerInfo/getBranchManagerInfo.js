@@ -8,10 +8,14 @@ export async function getBranchManagerInfo(req, res) {
   let connection
 
   try {
+    console.log('🔍 getBranchManagerInfo called')
+    
     // Get the token from authorization header
     const token = req.headers.authorization?.replace('Bearer ', '')
+    console.log('🎫 Token received:', token ? 'Yes' : 'No')
 
     if (!token) {
+      console.log('❌ No token provided')
       return res.status(401).json({
         success: false,
         message: 'Authorization token required',
@@ -22,8 +26,10 @@ export async function getBranchManagerInfo(req, res) {
     const jwtSecret =
       process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-this-in-production'
     const decoded = verify(token, jwtSecret)
+    console.log('🔓 Token decoded:', { userType: decoded.userType, branchManagerId: decoded.branchManagerId })
 
     if (decoded.userType !== 'branch_manager') {
+      console.log('❌ Access denied - not branch manager')
       return res.status(403).json({
         success: false,
         message: 'Access denied. Branch manager role required.',
@@ -31,25 +37,32 @@ export async function getBranchManagerInfo(req, res) {
     }
 
     connection = await createConnection()
+    console.log('📊 Database connected')
 
-    // Get branch manager information
+    // Get branch manager information with branch details
     const [branchManagers] = await connection.execute(
       `SELECT 
-        branch_manager_id,
-        branch_username,
-        area,
-        location,
-        first_name,
-        last_name,
-        email,
-        status,
-        created_at
-      FROM branch_manager 
-      WHERE branch_manager_id = ? AND status = ?`,
+        bm.branch_manager_id,
+        bm.manager_username,
+        bm.branch_id,
+        bm.first_name,
+        bm.last_name,
+        bm.email,
+        bm.status,
+        bm.created_at,
+        b.area,
+        b.location,
+        b.branch_name
+      FROM branch_manager bm
+      INNER JOIN branch b ON bm.branch_id = b.branch_id
+      WHERE bm.branch_manager_id = ? AND bm.status = ?`,
       [decoded.branchManagerId, 'Active'],
     )
 
+    console.log('📋 Query result:', branchManagers.length, 'records found')
+
     if (branchManagers.length === 0) {
+      console.log('❌ Branch manager not found in database')
       return res.status(404).json({
         success: false,
         message: 'Branch manager not found',
@@ -57,21 +70,25 @@ export async function getBranchManagerInfo(req, res) {
     }
 
     const branchManager = branchManagers[0]
+    console.log('✅ Branch manager found:', branchManager.branch_username)
 
     res.json({
       success: true,
       message: 'Branch manager information retrieved successfully',
-      data: {
+      branchManager: {
         id: branchManager.branch_manager_id,
-        username: branchManager.branch_username,
-        area: branchManager.area,
-        location: branchManager.location,
+        username: branchManager.manager_username,
+        branchId: branchManager.branch_id,
+        area: branchManager.area,              // From branch table
+        location: branchManager.location,      // From branch table
+        branchName: branchManager.branch_name, // From branch table
         firstName: branchManager.first_name,
         lastName: branchManager.last_name,
         email: branchManager.email,
         status: branchManager.status,
         fullName: `${branchManager.first_name} ${branchManager.last_name}`,
         designation: `${branchManager.area} - ${branchManager.location} Manager`,
+        role: 'Branch Manager',
       },
     })
   } catch (error) {

@@ -23,7 +23,7 @@ export const getLocationsByArea = async (req, res) => {
     connection = await createConnection()
 
     const [locations] = await connection.execute(
-      'SELECT DISTINCT location FROM branch_manager WHERE area = ? AND status = "Active" ORDER BY location',
+      'SELECT DISTINCT location FROM branch WHERE area = ? AND status = "Active" ORDER BY location',
       [area],
     )
 

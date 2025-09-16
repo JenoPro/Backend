@@ -121,28 +121,29 @@ export async function initializeDatabase() {
     try {
       const [branchManagers] = await connection.execute(`
         SELECT 
-          branch_manager_id,
-          branch_username, 
-          area, 
-          location,
-          first_name,
-          last_name,
-          status 
-        FROM branch_manager 
-        WHERE status = 'Active'
-        ORDER BY area, location, branch_username
+          bm.branch_manager_id,
+          bm.manager_username, 
+          bm.first_name,
+          bm.last_name,
+          bm.status,
+          bm.branch_id,
+          b.area,
+          b.location,
+          b.branch_name
+        FROM branch_manager bm
+        INNER JOIN branch b ON bm.branch_id = b.branch_id
+        WHERE bm.status = 'Active'
+        ORDER BY b.area, b.location, bm.manager_username
       `)
 
       if (branchManagers.length > 0) {
         console.log('   === BRANCH MANAGERS ===')
         branchManagers.forEach((manager, index) => {
           console.log(`   ${index + 1}. ${manager.first_name} ${manager.last_name}`)
-          console.log(`      Username: ${manager.branch_username}`)
-          console.log(`      Area: ${manager.area}`)
-          console.log(`      Location: ${manager.location}`)
+          console.log(`      Username: ${manager.manager_username}`)
+          console.log(`      Branch: ${manager.branch_name} (${manager.area} - ${manager.location})`)
           console.log(`      Status: ${manager.status}`)
-          console.log('      Password: [encrypted - use original password]')
-          console.log('')
+          console.log('      ---')
         })
       } else {
         console.log('   No branch managers found. Please check your data.')

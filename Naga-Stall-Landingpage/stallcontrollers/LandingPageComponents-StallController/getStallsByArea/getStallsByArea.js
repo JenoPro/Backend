@@ -24,15 +24,17 @@ export const getStallsByArea = async (req, res) => {
         sec.section_code,
         f.floor_name as floor,
         f.floor_number,
-        bm.area,
-        bm.location as branch_location,
+        b.area,
+        b.location as branch_location,
+        b.branch_name,
         bm.first_name as manager_first_name,
         bm.last_name as manager_last_name
       FROM stall s
       INNER JOIN section sec ON s.section_id = sec.section_id
       INNER JOIN floor f ON sec.floor_id = f.floor_id
-      INNER JOIN branch_manager bm ON f.branch_manager_id = bm.branch_manager_id
-      WHERE bm.area = ? AND s.status = 'Active' AND s.is_available = 1
+      INNER JOIN branch b ON f.branch_id = b.branch_id
+      INNER JOIN branch_manager bm ON b.branch_id = bm.branch_id
+      WHERE b.area = ? AND s.status = 'Active' AND s.is_available = 1
       ORDER BY s.created_at DESC
     `,
       [area],

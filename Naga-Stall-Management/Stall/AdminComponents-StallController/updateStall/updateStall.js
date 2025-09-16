@@ -31,7 +31,8 @@ export const updateStall = async (req, res) => {
        FROM stall s
        INNER JOIN section sec ON s.section_id = sec.section_id
        INNER JOIN floor f ON sec.floor_id = f.floor_id
-       INNER JOIN branch_manager bm ON f.branch_manager_id = bm.branch_manager_id
+       INNER JOIN branch b ON f.branch_id = b.branch_id
+       INNER JOIN branch_manager bm ON b.branch_id = bm.branch_id
        WHERE s.stall_id = ? AND bm.branch_manager_id = ?`,
       [id, branchManagerId],
     )
@@ -69,7 +70,8 @@ export const updateStall = async (req, res) => {
          FROM stall s
          INNER JOIN section sec ON s.section_id = sec.section_id
          INNER JOIN floor f ON sec.floor_id = f.floor_id
-         INNER JOIN branch_manager bm ON f.branch_manager_id = bm.branch_manager_id
+         INNER JOIN branch b ON f.branch_id = b.branch_id
+         INNER JOIN branch_manager bm ON b.branch_id = bm.branch_id
          WHERE s.stall_no = ? AND bm.branch_manager_id = ? AND s.stall_id != ?`,
         [updateData.stallNumber, branchManagerId, id],
       )
@@ -134,12 +136,14 @@ export const updateStall = async (req, res) => {
         f.floor_number,
         bm.first_name as manager_first_name,
         bm.last_name as manager_last_name,
-        bm.area,
-        bm.location as branch_location
+        b.area,
+        b.location as branch_location,
+        b.branch_name
       FROM stall s
       INNER JOIN section sec ON s.section_id = sec.section_id
       INNER JOIN floor f ON sec.floor_id = f.floor_id
-      INNER JOIN branch_manager bm ON f.branch_manager_id = bm.branch_manager_id
+      INNER JOIN branch b ON f.branch_id = b.branch_id
+      INNER JOIN branch_manager bm ON b.branch_id = bm.branch_id
       WHERE s.stall_id = ?
     `,
       [id],

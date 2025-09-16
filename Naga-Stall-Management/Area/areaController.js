@@ -258,7 +258,9 @@ export async function getFloors(req, res) {
         f.created_at,
         f.updated_at
       FROM floor f
-      WHERE f.branch_manager_id = ? AND f.status = 'Active'
+      INNER JOIN branch b ON f.branch_id = b.branch_id
+      INNER JOIN branch_manager bm ON b.branch_id = bm.branch_id
+      WHERE bm.branch_manager_id = ? AND f.status = 'Active'
       ORDER BY f.floor_number ASC
     `,
       [branchManagerId],
@@ -312,7 +314,9 @@ export async function getSections(req, res) {
         f.floor_number
       FROM section s
       INNER JOIN floor f ON s.floor_id = f.floor_id
-      WHERE f.branch_manager_id = ? AND s.status = 'Active'
+      INNER JOIN branch b ON f.branch_id = b.branch_id
+      INNER JOIN branch_manager bm ON b.branch_id = bm.branch_id
+      WHERE bm.branch_manager_id = ? AND s.status = 'Active'
       ORDER BY f.floor_number ASC, s.section_name ASC
     `,
       [branchManagerId],

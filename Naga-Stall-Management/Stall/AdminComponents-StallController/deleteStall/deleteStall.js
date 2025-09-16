@@ -22,7 +22,8 @@ export const deleteStall = async (req, res) => {
        FROM stall s
        INNER JOIN section sec ON s.section_id = sec.section_id
        INNER JOIN floor f ON sec.floor_id = f.floor_id
-       INNER JOIN branch_manager bm ON f.branch_manager_id = bm.branch_manager_id
+       INNER JOIN branch b ON f.branch_id = b.branch_id
+       INNER JOIN branch_manager bm ON b.branch_id = bm.branch_id
        WHERE s.stall_id = ? AND bm.branch_manager_id = ?`,
       [id, branchManagerId],
     )

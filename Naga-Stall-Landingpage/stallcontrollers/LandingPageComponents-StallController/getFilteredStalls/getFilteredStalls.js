@@ -16,14 +16,16 @@ export const getFilteredStalls = async (req, res) => {
         sec.section_code,
         f.floor_name as floor,
         f.floor_number,
-        bm.area,
-        bm.location as branch_location,
+        b.area,
+        b.location as branch_location,
+        b.branch_name,
         bm.first_name as manager_first_name,
         bm.last_name as manager_last_name
       FROM stall s
       INNER JOIN section sec ON s.section_id = sec.section_id
       INNER JOIN floor f ON sec.floor_id = f.floor_id
-      INNER JOIN branch_manager bm ON f.branch_manager_id = bm.branch_manager_id
+      INNER JOIN branch b ON f.branch_id = b.branch_id
+      INNER JOIN branch_manager bm ON b.branch_id = bm.branch_id
       WHERE s.status = 'Active' AND s.is_available = 1
     `
 
@@ -31,13 +33,13 @@ export const getFilteredStalls = async (req, res) => {
 
     // Area filter
     if (area) {
-      query += ' AND bm.area = ?'
+      query += ' AND b.area = ?'
       queryParams.push(area)
     }
 
     // Location filter
     if (location) {
-      query += ' AND bm.location = ?'
+      query += ' AND b.location = ?'
       queryParams.push(location)
     }
 
@@ -53,8 +55,8 @@ export const getFilteredStalls = async (req, res) => {
         s.stall_no LIKE ? OR 
         s.stall_location LIKE ? OR 
         s.description LIKE ? OR
-        bm.area LIKE ? OR
-        bm.location LIKE ?
+        b.area LIKE ? OR
+        b.location LIKE ?
       )`
       const searchPattern = `%${search}%`
       queryParams.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern)
