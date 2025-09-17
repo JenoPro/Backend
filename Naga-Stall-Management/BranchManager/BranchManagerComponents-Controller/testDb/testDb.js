@@ -1,4 +1,4 @@
-import { testConnection } from '../../config/database.js'
+import { testConnection } from '../../../config/database.js'
 
 // Test database connection controller
 export async function testDb(req, res) {

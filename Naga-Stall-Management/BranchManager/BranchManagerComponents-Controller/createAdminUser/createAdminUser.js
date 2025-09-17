@@ -1,5 +1,5 @@
 import bcrypt from 'bcrypt'
-import { createConnection } from '../../config/database.js'
+import { createConnection } from '../../../config/database.js'
 
 const { hash } = bcrypt
 

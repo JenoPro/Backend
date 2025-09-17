@@ -1,7 +1,7 @@
 import bcrypt from 'bcrypt'
 import jwt from 'jsonwebtoken'
 import process from 'process'
-import { createConnection } from '../../config/database.js'
+import { createConnection } from '../../../config/database.js'
 
 const { compare } = bcrypt
 const { sign } = jwt

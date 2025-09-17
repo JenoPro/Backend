@@ -1,4 +1,4 @@
-import { createConnection } from '../../config/database.js'
+import { createConnection } from '../../../config/database.js'
 
 // Get available areas from branch_manager table
 export async function getAreas(req, res) {

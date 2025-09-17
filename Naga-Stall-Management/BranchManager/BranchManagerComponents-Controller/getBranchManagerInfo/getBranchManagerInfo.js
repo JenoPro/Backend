@@ -1,5 +1,5 @@
 import jwt from 'jsonwebtoken'
-import { createConnection } from '../../config/database.js'
+import { createConnection } from '../../../config/database.js'
 
 const { verify } = jwt
 
