@@ -4,10 +4,10 @@ import dotenv from 'dotenv'
 import process from 'process'
 import { initializeDatabase } from '../../Naga-Stall-Management/config/database.js'
 import { corsConfig } from '../../Naga-Stall-Management/config/cors.js'
-import adminRoutes from '../../Naga-Stall-Management/Admin/adminRoutes.js'
+import adminRoutes from '../../Naga-Stall-Management/BranchManager/adminRoutes.js'
 import stallRoutes from '../../Naga-Stall-Management/Stall/stallRoutes.js'
 import areaRoutes from '../../Naga-Stall-Management/Area/areaRoutes.js'
-import { testDb } from '../../Naga-Stall-Management/Admin/adminController.js'
+import { testDb } from '../../Naga-Stall-Management/BranchManager/adminController.js'
 import { errorHandler } from '../../Naga-Stall-Management/middleware/errorHandler.js'
 
 // Load environment variables from .env file

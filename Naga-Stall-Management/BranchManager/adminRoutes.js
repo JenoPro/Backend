@@ -1,6 +1,7 @@
 import express from 'express'
 import {
   branchManagerLogin,
+  adminLogin,
   getBranchManagerInfo, // This import is correct
   verifyToken,
   logout,
@@ -13,7 +14,8 @@ import {
 
 const router = express.Router()
 
-// Branch Manager Authentication Routes
+// Authentication Routes
+router.post('/admin/login', adminLogin)
 router.post('/branch_manager/login', branchManagerLogin)
 
 // Branch Manager Information Routes - THIS IS THE KEY ADDITION

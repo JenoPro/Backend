@@ -12,7 +12,8 @@ import authMiddleware from './Naga-Stall-Management/middleware/auth.js'
 // import { testConnection } from './Naga-Stall-Landingpage/config/database.js'
 
 // Route imports - organized by functionality
-import adminRoutes from './Naga-Stall-Management/Admin/adminRoutes.js'
+import adminRoutes from './Naga-Stall-Management/BranchManager/adminRoutes.js'
+import branchRoutes from './Naga-Stall-Management/Branch/branchRoutes.js'
 import managementStallRoutes from './Naga-Stall-Management/Stall/stallRoutes.js'
 import landingStallRoutes from './Naga-Stall-Landingpage/routes/stallRoutes.js'
 import applicantRoutes from './Naga-Stall-Landingpage/routes/applicantRoutes.js'
@@ -29,7 +30,7 @@ import {
   getAreas,
   getBranchesByArea,
   testDb
-} from './Naga-Stall-Management/Admin/adminController.js'
+} from './Naga-Stall-Management/BranchManager/adminController.js'
 
 // Import area controller functions
 import {
@@ -50,6 +51,9 @@ import {
   getAvailableStalls,
   getStallsByFilter
 } from './Naga-Stall-Management/Stall/stallController.js'
+
+// Import branch management functions
+import { createBranchManager } from './Naga-Stall-Management/Branch/branchController.js'
 
 // Import landing page functions for public endpoints (without auth required)
 import {
@@ -74,6 +78,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }))
 
 // ===== PREFIXED ROUTES (For advanced usage) =====
 app.use('/management/api/auth', adminRoutes)
+app.use('/management/api/branches', branchRoutes)
 app.use('/management/api/stalls', managementStallRoutes)
 app.use('/landing/api/stalls', landingStallRoutes)
 app.use('/landing/api/applicants', applicantRoutes)
@@ -88,6 +93,12 @@ app.get('/api/auth/verify-token', verifyToken)
 app.post('/api/auth/logout', logout)
 app.get('/api/auth/me', getCurrentUser)
 app.get('/api/auth/branch-manager-info', getBranchManagerInfo)
+
+// Admin Branch Management endpoints
+app.use('/api/admin/branches', branchRoutes)
+
+// Branch manager endpoints
+app.post('/api/admin/branch-managers', authMiddleware.authenticateAdmin, createBranchManager)
 
 // Stall endpoints (authenticated - returns stalls for the logged-in branch manager)
 app.get('/api/stalls', authMiddleware.authenticateToken, getAllStalls)  // Get stalls for authenticated branch manager
