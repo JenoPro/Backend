@@ -38,7 +38,8 @@ import {
   getAreasByCity,
   getLocationsByCity,
   getFloors,
-  getSections
+  getSections,
+  debugSatelliteManager
 } from './Naga-Stall-Management/Area/areaController.js'
 
 // Import management stall functions for CRUD operations (with authentication)
@@ -127,6 +128,7 @@ app.get('/api/branches/:area', getBranchesByArea)
 // Floor and Section endpoints (require authentication)
 app.get('/api/floors', authMiddleware.authenticateToken, getFloors)
 app.get('/api/sections', authMiddleware.authenticateToken, getSections)
+app.get('/api/debug/satellite-manager', debugSatelliteManager) // Debug endpoint for Satellite_Manager issue
 
 // Utility endpoints
 app.get('/api/test-db', testDb)
