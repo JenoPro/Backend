@@ -1,256 +1,207 @@
-import express from "express";
-import cors from "cors";
-import dotenv from "dotenv";
-import process from "process";
+import express from 'express'
+import cors from 'cors'
+import dotenv from 'dotenv'
+import process from 'process'
+import { initializeDatabase } from './Naga-Stall-Management/config/database.js'
+import { corsConfig } from './Naga-Stall-Management/config/cors.js'
+import { errorHandler } from './Naga-Stall-Management/middleware/errorHandler.js'
 
-// Database and configuration imports
-import { initializeDatabase } from "./Naga-Stall-Management/config/database.js";
-import { corsConfig } from "./Naga-Stall-Management/config/cors.js";
-import { errorHandler } from "./Naga-Stall-Management/middleware/errorHandler.js";
-import authMiddleware from "./Naga-Stall-Management/middleware/auth.js";
-// Only import testConnection for health checks, not full database initialization
-// import { testConnection } from './Naga-Stall-Landingpage/config/database.js'
+// Import new consolidated routes
+import authRoutes from './Naga-Stall-Management/routes/authRoutes.js'
+import stallRoutes from './Naga-Stall-Management/routes/stallRoutes.js'
+import branchRoutes from './Naga-Stall-Management/routes/branchRoutes.js'
+import applicantRoutes from './Naga-Stall-Management/routes/applicantRoutes.js'
+// Import floor/section functions for direct endpoints
+import { getFloors, getSections, getFloorsWithSections, createFloor, createSection, createBranchManager } from './Naga-Stall-Management/controllers/branch/branchController.js'
+import authMiddleware from './Naga-Stall-Management/middleware/auth.js'
 
-// Route imports - organized by functionality
-import adminRoutes from "./Naga-Stall-Management/BranchManager/adminRoutes.js";
-import branchRoutes from "./Naga-Stall-Management/Branch/branchRoutes.js";
-import managementStallRoutes from "./Naga-Stall-Management/Stall/stallRoutes.js";
+// Legacy imports for Landing page and Mobile app (unchanged)
 import landingStallRoutes from "./Naga-Stall-Landingpage/routes/stallRoutes.js";
-import applicantRoutes from "./Naga-Stall-Landingpage/routes/applicantRoutes.js";
+import landingApplicantRoutes from "./Naga-Stall-Landingpage/routes/applicantRoutes.js";
 import applicationRoutes from "./Naga-Stall-Landingpage/routes/applicationRoutes.js";
-import floorRoutes from "./Naga-Stall-Management/BranchManager/Floor/floorRoutes.js";
-import sectionRoutes from "./Naga-Stall-Management/BranchManager/Section/sectionRoutes.js";
-import floorSectionRoutes from "./Naga-Stall-Management/BranchManager/floorSectionRoutes.js";
-
-// Controller imports - static imports for better performance
-import {
-  adminLogin,
-  branchManagerLogin,
-  verifyToken,
-  logout,
-  getCurrentUser,
-  getBranchManagerInfo,
-  getAreas,
-  getBranchesByArea,
-  testDb,
-} from "./Naga-Stall-Management/BranchManager/adminController.js";
-
-// Import area controller functions
-import {
-  getAllAreas,
-  getAreasByCity,
-  getLocationsByCity,
-  getFloors,
-  getSections,
-} from "./Naga-Stall-Management/Area/areaController.js";
-
-// Import management stall functions for CRUD operations (with authentication)
-import {
-  addStall,
-  updateStall,
-  deleteStall,
-  getAllStalls,
-  getStallById,
-  getAvailableStalls,
-  getStallsByFilter,
-} from "./Naga-Stall-Management/Stall/stallController.js";
-
-// Import branch management functions
-import { createBranchManager } from "./Naga-Stall-Management/Branch/branchController.js";
-
-// Import landing page functions for public endpoints (without auth required)
-import {
-  getAllStalls as getAllStallsPublic,
-  getStallById as getStallByIdPublic,
-  getAvailableAreas,
-  getStallsByArea,
-  getLocationsByArea,
-  getFilteredStalls,
-} from "./Naga-Stall-Landingpage/stallcontrollers/stallController.js";
-
 // Load environment variables
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3000;
 
 // Middleware
 app.use(cors(corsConfig));
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
-// ===== PREFIXED ROUTES (For advanced usage) =====
-app.use("/management/api/auth", adminRoutes);
-app.use("/management/api/branches", branchRoutes);
-app.use("/management/api/stalls", managementStallRoutes);
-app.use("/landing/api/stalls", landingStallRoutes);
-app.use("/landing/api/applicants", applicantRoutes);
-app.use("/landing/api/applications", applicationRoutes);
+// ===== NEW ORGANIZED API ROUTES (Management System) =====
+// Authentication routes
+app.use('/api/auth', authRoutes)
 
-// ===== FRONTEND-FRIENDLY ROUTES (No prefix) =====
+// Feature-based routes (protected)
+app.use('/api/stalls', stallRoutes)          // Stall management
+app.use('/api/branches', branchRoutes)       // Branch management (for branch managers)
+app.use('/api/applicants', applicantRoutes)  // Applicant management
 
-// Authentication endpoints
-app.post("/api/auth/admin/login", adminLogin);
-app.post("/api/auth/branch_manager/login", branchManagerLogin);
-app.get("/api/auth/verify-token", verifyToken);
-app.post("/api/auth/logout", logout);
-app.get("/api/auth/me", getCurrentUser);
-app.get("/api/auth/branch-manager-info", getBranchManagerInfo);
+// Admin-specific routes (different URL structure expected by frontend)
+app.use('/api/admin/branches', branchRoutes) // Admin branch management
+// Add specific admin endpoints that frontend expects
+app.post('/api/admin/branch-managers', authMiddleware.authenticateToken, authMiddleware.authorizeRole('admin'), createBranchManager)  // POST /api/admin/branch-managers
 
-// Admin Branch Management endpoints
-app.use("/api/admin/branches", branchRoutes);
+// Direct endpoints for floors and sections (required by frontend)
+app.get('/api/floors', authMiddleware.authenticateToken, getFloors)      // GET /api/floors - Get floors for branch manager
+app.post('/api/floors', authMiddleware.authenticateToken, createFloor)   // POST /api/floors - Create new floor
+app.get('/api/sections', authMiddleware.authenticateToken, getSections)  // GET /api/sections - Get sections for branch manager
+app.post('/api/sections', authMiddleware.authenticateToken, createSection) // POST /api/sections - Create new section
 
-// Branch manager endpoints
-app.post(
-  "/api/admin/branch-managers",
-  authMiddleware.authenticateAdmin,
-  createBranchManager
-);
+// Legacy endpoint that frontend expects
+app.get('/api/branch-manager/floors-with-sections', authMiddleware.authenticateToken, getFloorsWithSections)  // GET /api/branch-manager/floors-with-sections
 
-// Stall endpoints (authenticated - returns stalls for the logged-in branch manager)
-app.get("/api/stalls", authMiddleware.authenticateToken, getAllStalls); // Get stalls for authenticated branch manager
-app.post("/api/stalls", authMiddleware.authenticateToken, addStall); // CREATE stall (requires auth)
-app.get("/api/stalls/areas", getAvailableAreas); // Public endpoint
-app.get("/api/stalls/by-area", getStallsByArea); // Public endpoint
-app.get("/api/stalls/locations", getLocationsByArea); // Public endpoint
-app.get("/api/stalls/filter", getFilteredStalls); // Public filter endpoint for landing page
-app.get(
-  "/api/stalls/my-filter",
-  authMiddleware.authenticateToken,
-  getStallsByFilter
-); // Filter stalls for authenticated branch manager
-app.get("/api/stalls/:id", authMiddleware.authenticateToken, getStallById); // Get specific stall for authenticated branch manager
-app.put("/api/stalls/:id", authMiddleware.authenticateToken, updateStall); // UPDATE stall (requires auth)
-app.delete("/api/stalls/:id", authMiddleware.authenticateToken, deleteStall); // DELETE stall (requires auth)
+// ===== LEGACY ROUTES (Landing Page & Mobile - unchanged) =====
+app.use("/api/landing-stalls", landingStallRoutes);
+app.use("/api/landing-applicants", landingApplicantRoutes);
+app.use("/api/applications", applicationRoutes);
 
-// Public stall endpoints (for landing page - no authentication required)
-app.get("/api/public/stalls", getAllStallsPublic); // Get all stalls publicly
-app.get("/api/public/stalls/:id", getStallByIdPublic); // Get specific stall publicly
+// ===== UTILITY ENDPOINTS =======
 
-// Landing page API endpoints (no authentication required)
-app.use("/api/applicants", applicantRoutes); // Direct access to applicant routes
-app.use("/api/applications", applicationRoutes); // Direct access to application routes
-
-// Area and branch endpoints
-app.get("/api/areas", getAreas);
-app.get("/api/branches/:area", getBranchesByArea);
-
-// Floor and Section endpoints (require authentication)
-app.use("/api/floors", floorRoutes);
-app.use("/api/sections", sectionRoutes);
-app.use("/api/branch-manager", floorSectionRoutes);
-
-// Utility endpoints
-app.get("/api/test-db", testDb);
-app.get("/api/check-table", async (req, res) => {
-  try {
-    const { createConnection } = await import(
-      "./Naga-Stall-Management/config/database.js"
-    );
-    const connection = await createConnection();
-
-    // Check stall table structure
-    const [columns] = await connection.execute("DESCRIBE stall");
-
-    // Check some sample data
-    const [sampleData] = await connection.execute(
-      "SELECT * FROM stall LIMIT 3"
-    );
-
-    await connection.end();
-
-    res.json({
-      success: true,
-      tableStructure: columns,
-      sampleData: sampleData,
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
-  }
-});
-app.get("/api/health", async (req, res) => {
-  try {
-    // Simple health check without database connection test to avoid conflicts
-    res.json({
-      success: true,
-      message: "Naga Stall Main Server is running",
-      timestamp: new Date().toISOString(),
-      env: {
-        nodeEnv: process.env.NODE_ENV || "development",
-        port: PORT,
-        dbHost: process.env.DB_HOST || "localhost",
-        dbName: process.env.DB_NAME || "naga_stall",
-      },
-      status: "healthy",
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Server health check failed",
-      error: error.message,
-    });
-  }
-});
-
-// Root endpoint
-app.get("/", (req, res) => {
+// Health check endpoint
+app.get('/api/health', (req, res) => {
   res.json({
     success: true,
-    message: "Naga Stall Main API Server",
-    version: "1.0.0",
-    endpoints: {
-      auth: "/api/auth/*",
-      stalls: "/api/stalls/*",
-      areas: "/api/areas",
-      health: "/api/health",
+    message: 'Naga Stall Management Server is running',
+    timestamp: new Date().toISOString(),
+    env: {
+      nodeEnv: process.env.NODE_ENV || 'development',
+      port: PORT,
+      dbHost: process.env.DB_HOST || 'localhost',
+      dbName: process.env.DB_NAME || 'naga_stall',
     },
-  });
-});
+  })
+})
 
-// Error handling
-app.use(errorHandler);
-app.use("*", (req, res) => {
+// Root endpoint
+app.get('/', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Welcome to Naga Stall Management API',
+    version: '2.0.0',
+    documentation: '/api/docs',
+    health: '/api/health'
+  })
+})
+
+// Error handling middleware
+app.use(errorHandler)
+
+// 404 handler
+app.use('*', (req, res) => {
   res.status(404).json({
     success: false,
-    message: `Route ${req.originalUrl} not found`,
-  });
-});
+    message: 'API endpoint not found',
+    path: req.originalUrl
+  })
+})
 
 // Start server
 app.listen(PORT, async () => {
-  console.log("🚀 Naga Stall Server starting...");
-  console.log(`🌐 Server: http://localhost:${PORT}`);
-  console.log(`🔧 Environment: ${process.env.NODE_ENV || "development"}`);
+  console.log('🚀 Naga Stall Management Server starting...')
+  console.log(`🌐 Server running on http://localhost:${PORT}`)
+  console.log(`🔧 Environment: ${process.env.NODE_ENV || 'development'}`)
+  console.log('🌐 CORS enabled for frontend URLs')
+  console.log('📋 API Endpoints:')
+
+  // Authentication endpoints
+  console.log('\n   === AUTHENTICATION ENDPOINTS ===')
+  console.log('   POST /api/auth/admin/login - Admin login (super admin)')
+  console.log('   POST /api/auth/branch_manager/login - Branch Manager login')
+  console.log('   GET  /api/auth/verify-token - Verify JWT token')
+  console.log('   POST /api/auth/logout - Logout (protected)')
+  console.log('   GET  /api/auth/me - Get current user info (protected)')
+  console.log('   GET  /api/auth/branch-manager-info - Get branch manager info (protected)')
+  console.log('   GET  /api/auth/admin-info - Get admin info (protected)')
+  console.log('   POST /api/auth/create-admin - Create admin user')
+  console.log('   POST /api/auth/hash-password - Create password hash')
+  console.log('   GET  /api/auth/test-db - Test database connection')
+
+  // Branch management endpoints
+  console.log('\n   === BRANCH MANAGEMENT ENDPOINTS (Protected) ===')
+  console.log('   POST /api/branches - Create new branch')
+  console.log('   GET  /api/branches - Get all branches')
+  console.log('   DELETE /api/branches/:id - Delete branch')
+  console.log('   GET  /api/branches/areas - Get all areas')
+  console.log('   GET  /api/branches/area/:area - Get branches by area')
+  console.log('   GET  /api/branches/managers - Get all branch managers')
+  console.log('   POST /api/branches/managers - Create branch manager')
+  console.log('   GET  /api/branches/managers/:managerId - Get branch manager by ID')
+  console.log('   PUT  /api/branches/managers/:managerId - Update branch manager')
+  console.log('   DELETE /api/branches/managers/:managerId - Delete branch manager')
+  console.log('   POST /api/branches/assign-manager - Assign manager to branch')
+  console.log('   POST /api/branches/branch-managers - Assign manager to branch (alias)')
+  console.log('   GET  /api/branches/floors - Get floors for branch manager')
+  console.log('   POST /api/branches/floors - Create new floor')
+  console.log('   GET  /api/branches/sections - Get sections for branch manager')
+  console.log('   POST /api/branches/sections - Create new section')
+  console.log('   GET  /api/branches/cities - Get unique cities')
+  console.log('   GET  /api/branches/city/:city - Get areas by city')
+  console.log('   GET  /api/branches/locations/:city - Get locations by city')
+  console.log('   GET  /api/branches/area/:id - Get area by ID with statistics')
+
+  // Direct floor and section endpoints (required by frontend)
+  console.log('\n   === FLOOR & SECTION ENDPOINTS (Protected) ===')
+  console.log('   GET  /api/floors - Get floors for authenticated branch manager')
+  console.log('   POST /api/floors - Create new floor')
+  console.log('   GET  /api/sections - Get sections for authenticated branch manager')
+  console.log('   POST /api/sections - Create new section')
+  console.log('   GET  /api/branch-manager/floors-with-sections - Get floors with nested sections (legacy endpoint)')
+
+  // Stall management endpoints
+  console.log('\n   === STALL MANAGEMENT ENDPOINTS (Protected) ===')
+  console.log('   POST /api/stalls - Add new stall')
+  console.log('   GET  /api/stalls - Get all stalls for authenticated branch manager')
+  console.log('   GET  /api/stalls/available - Get available stalls')
+  console.log('   GET  /api/stalls/filter - Get stalls by filter')
+  console.log('   GET  /api/stalls/:id - Get stall by ID')
+  console.log('   PUT  /api/stalls/:id - Update stall')
+  console.log('   DELETE /api/stalls/:id - Delete stall')
+
+  // Applicant management endpoints
+  console.log('\n   === APPLICANT MANAGEMENT ENDPOINTS ===')
+  console.log('   POST /api/applicants - Create new applicant (public)')
+  console.log('   GET  /api/applicants - Get all applicants (protected)')
+  console.log('   GET  /api/applicants/search - Search applicants (protected)')
+  console.log('   GET  /api/applicants/:id - Get applicant by ID (protected)')
+  console.log('   PUT  /api/applicants/:id - Update applicant (protected)')
+  console.log('   DELETE /api/applicants/:id - Delete applicant (protected)')
+
+  // Legacy landing page endpoints
+  console.log('\n   === LEGACY LANDING PAGE ENDPOINTS ===')
+  console.log('   GET  /api/landing-stalls/* - Landing page stall endpoints')
+  console.log('   GET  /api/landing-applicants/* - Landing page applicant endpoints')
+  console.log('   GET  /api/applications/* - Application endpoints')
+
+  // Utility endpoints
+  console.log('\n   === UTILITY ENDPOINTS ===')
+  console.log('   GET  /api/health - Health check')
+  console.log('   GET  / - API information')
+
+  console.log('\n📋 SAMPLE LOGIN CREDENTIALS:')
+  console.log('   Branch Manager 1:')
+  console.log('   - Area: Naga City')
+  console.log('   - Location: Peoples Mall')
+  console.log('   - Username: manager_naga_peoples')
+  console.log('   - Password: [encrypted in database]')
+  console.log('')
+  console.log('   Branch Manager 2:')
+  console.log('   - Area: Legazpi')
+  console.log('   - Location: SM')
+  console.log('   - Username: manager_legazpi_sm')
+  console.log('   - Password: [encrypted in database]')
 
   try {
-    console.log("🔧 Initializing database...");
-    await initializeDatabase();
-    console.log("✅ Database ready");
-    console.log("📊 Server fully operational");
+    await initializeDatabase()
+    console.log('\n✅ Database initialization completed successfully')
+    console.log('📊 Stalls are filtered by branch_manager_id for each logged-in user')
+    console.log('🎯 Backend reorganized by features (login, stalls, branches, applicants)')
   } catch (error) {
-    console.error("❌ Database initialization failed:", error);
-    process.exit(1);
+    console.error('\n❌ Failed to initialize database:', error)
+    process.exit(1)
   }
-});
+})
 
-// Graceful shutdown
-const gracefulShutdown = (signal) => {
-  console.log(`🔄 ${signal} received, shutting down gracefully`);
-  process.exit(0);
-};
-
-process.on("unhandledRejection", (err) => {
-  console.error("❌ Unhandled Promise Rejection:", err);
-  process.exit(1);
-});
-
-process.on("uncaughtException", (err) => {
-  console.error("❌ Uncaught Exception:", err);
-  process.exit(1);
-});
-
-process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
-process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+export default app

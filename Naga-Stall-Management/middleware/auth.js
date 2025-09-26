@@ -40,18 +40,26 @@ const authenticateToken = (req, res, next) => {
       }
 
       // Add decoded user information to request
+      const userType = decoded.type || decoded.userType || decoded.role;
+      
       req.user = {
         userId: decoded.userId,
         username: decoded.username,
-        userType: decoded.userType, // 'admin' or 'branch_manager'
+        userType: userType,
         area: decoded.area,
         location: decoded.location,
         branchManagerId: decoded.branchManagerId || decoded.userId,
         // Keep legacy role field for backward compatibility
-        role: decoded.userType === 'admin' ? 'admin' : 'branch_manager',
+        role: userType, // Use the actual userType instead of defaulting
       }
 
-      console.log('Authenticated user:', req.user.username, 'Type:', req.user.userType)
+      console.log('🔍 Authenticated user details:', {
+        username: req.user.username, 
+        userType: req.user.userType,
+        role: req.user.role,
+        userId: req.user.userId
+      });
+      
       next()
     },
   )
