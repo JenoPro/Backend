@@ -2,7 +2,7 @@ import { createConnection } from '../../../config/database.js'
 
 // Create new section
 export const createSection = async (req, res) => {
-  const { floor_id, section_name, section_code, description, status } = req.body;
+  const { floor_id, section_name, status } = req.body;
   const branch_manager_id = req.user?.branchManagerId;
   if (!branch_manager_id)
     return res.status(401).json({ success: false, message: "Unauthorized" });
@@ -29,20 +29,9 @@ export const createSection = async (req, res) => {
         message: "Floor not found or not owned by branch manager",
       });
     
-    // Validate unique section_code within floor
-    const [existing] = await connection.execute(
-      "SELECT * FROM section WHERE floor_id = ? AND section_code = ?",
-      [floor_id, section_code]
-    );
-    if (existing.length > 0)
-      return res.status(409).json({
-        success: false,
-        message: "Section code already exists for this floor",
-      });
-    
     const [result] = await connection.execute(
-      "INSERT INTO section (floor_id, section_name, section_code, description, status, created_at) VALUES (?, ?, ?, ?, ?, NOW())",
-      [floor_id, section_name, section_code, description, status]
+      "INSERT INTO section (floor_id, section_name, status, created_at) VALUES (?, ?, ?, NOW())",
+      [floor_id, section_name, status]
     );
     const section_id = result.insertId;
     res.json({
@@ -52,8 +41,6 @@ export const createSection = async (req, res) => {
         section_id,
         floor_id,
         section_name,
-        section_code,
-        description,
         status,
       },
     });

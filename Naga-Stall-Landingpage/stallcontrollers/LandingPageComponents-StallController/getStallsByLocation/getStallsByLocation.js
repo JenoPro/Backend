@@ -21,7 +21,6 @@ export const getStallsByLocation = async (req, res) => {
         s.*,
         s.stall_id as id,
         sec.section_name as section,
-        sec.section_code,
         f.floor_name as floor,
         f.floor_number,
         bm.area,

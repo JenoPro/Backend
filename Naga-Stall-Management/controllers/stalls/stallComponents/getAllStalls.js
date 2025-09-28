@@ -24,7 +24,6 @@ export const getAllStalls = async (req, res) => {
         s.*,
         s.stall_id as id,
         sec.section_name,
-        sec.section_code,
         f.floor_name,
         f.floor_number,
         bm.first_name as manager_first_name,

@@ -2,7 +2,7 @@ import { createConnection } from '../../../config/database.js'
 
 // Create new floor
 export const createFloor = async (req, res) => {
-  const { floor_number, floor_name, description, status } = req.body;
+  const { floor_number, floor_name, status } = req.body;
   const branch_manager_id = req.user?.branchManagerId;
   if (!branch_manager_id)
     return res.status(401).json({ success: false, message: "Unauthorized" });
@@ -45,14 +45,14 @@ export const createFloor = async (req, res) => {
     const branch_id = branchResult[0].branch_id;
 
     const [result] = await connection.execute(
-      "INSERT INTO floor (branch_id, floor_number, floor_name, description, status, created_at) VALUES (?, ?, ?, ?, ?, NOW())",
-      [branch_id, floor_number, floor_name, description, status]
+      "INSERT INTO floor (branch_id, floor_number, floor_name, status, created_at) VALUES (?, ?, ?, ?, NOW())",
+      [branch_id, floor_number, floor_name, status]
     );
     const floor_id = result.insertId;
     res.json({
       success: true,
       message: "Floor created successfully",
-      data: { floor_id, floor_number, floor_name, description, status },
+      data: { floor_id, floor_number, floor_name, status },
     });
   } catch (err) {
     res
