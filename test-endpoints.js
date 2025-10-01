@@ -165,7 +165,7 @@ async function testGetSections() {
     console.log('✅ Sections retrieved')
     console.log(`   Count: ${sections?.length || 0}`)
     if (sections?.length > 0) {
-      console.log(`   Sample: ${sections[0].section_name} (${sections[0].section_code})`)
+      console.log(`   Sample: ${sections[0].section_name}`)
     }
   } else {
     console.log('❌ Failed to get sections:', result.error)

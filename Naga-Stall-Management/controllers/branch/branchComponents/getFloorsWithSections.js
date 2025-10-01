@@ -13,7 +13,7 @@ export const getFloorsWithSections = async (req, res) => {
     // Get floors for this branch manager
     const [floors] = await connection.execute(
       `SELECT f.floor_id as id, f.floor_number, f.floor_name as name, 
-              f.description, f.status, f.created_at
+              f.status, f.created_at
        FROM floor f
        INNER JOIN branch b ON f.branch_id = b.branch_id
        INNER JOIN branch_manager bm ON b.branch_id = bm.branch_id
@@ -26,14 +26,14 @@ export const getFloorsWithSections = async (req, res) => {
     const floorsWithSections = await Promise.all(
       floors.map(async (floor) => {
         const [sections] = await connection.execute(
-          `SELECT s.section_id as id, s.section_name as name, s.section_code,
-                  s.description, s.status, s.created_at,
+          `SELECT s.section_id as id, s.section_name as name,
+                  s.status, s.created_at,
                   COUNT(st.stall_id) as stall_count
            FROM section s
            LEFT JOIN stall st ON s.section_id = st.section_id
            WHERE s.floor_id = ?
-           GROUP BY s.section_id, s.section_name, s.section_code, s.description, s.status, s.created_at
-           ORDER BY s.section_code ASC`,
+           GROUP BY s.section_id, s.section_name, s.status, s.created_at
+           ORDER BY s.section_name ASC`,
           [floor.id]
         );
         

@@ -4,10 +4,10 @@ import dotenv from 'dotenv'
 import process from 'process'
 import { initializeDatabase } from '../../Naga-Stall-Management/config/database.js'
 import { corsConfig } from '../../Naga-Stall-Management/config/cors.js'
-import adminRoutes from '../../Naga-Stall-Management/BranchManager/adminRoutes.js'
-import stallRoutes from '../../Naga-Stall-Management/Stall/stallRoutes.js'
-import areaRoutes from '../../Naga-Stall-Management/Area/areaRoutes.js'
-import { testDb } from '../../Naga-Stall-Management/BranchManager/adminController.js'
+import authRoutes from '../../Naga-Stall-Management/routes/authRoutes.js'
+import stallRoutes from '../../Naga-Stall-Management/routes/stallRoutes.js'
+import branchRoutes from '../../Naga-Stall-Management/routes/branchRoutes.js'
+import applicantRoutes from '../../Naga-Stall-Management/routes/applicantRoutes.js'
 import { errorHandler } from '../../Naga-Stall-Management/middleware/errorHandler.js'
 
 // Load environment variables from .env file
@@ -21,12 +21,36 @@ app.use(cors(corsConfig))
 app.use(express.json())
 
 // Routes
-app.use('/api/auth', adminRoutes) // Authentication routes for branch managers
-app.use('/api/stalls', stallRoutes) // Stall management routes (with authentication)
-app.use('/api/areas', areaRoutes) // Area information routes
+app.use('/api/auth', authRoutes)        // Authentication routes for branch managers
+app.use('/api/stalls', stallRoutes)     // Stall management routes (with authentication) - INCLUDES RAFFLE/AUCTION
+app.use('/api/branches', branchRoutes)  // Branch management routes
+app.use('/api/applicants', applicantRoutes) // Applicant management routes
 
 // Test database connection endpoint
-app.get('/api/test-db', testDb)
+app.get('/api/test-db', async (req, res) => {
+  try {
+    const connection = await initializeDatabase();
+    if (connection) {
+      await connection.end();
+      res.json({
+        success: true,
+        message: 'Database connection successful',
+        timestamp: new Date().toISOString()
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        message: 'Database connection failed'
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Database connection error',
+      error: error.message
+    });
+  }
+})
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

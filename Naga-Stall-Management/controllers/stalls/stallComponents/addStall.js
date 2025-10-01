@@ -2,6 +2,7 @@ import { createConnection } from '../../../config/database.js'
 
 // Add new stall (assigned to the authenticated branch manager)
 export const addStall = async (req, res) => {
+  console.log("🔥 UPDATED ADDSTALL FUNCTION CALLED - VERSION 2.0 with floor_id support");
   let connection;
   try {
     // Get the branch manager ID from the authenticated user
@@ -21,46 +22,102 @@ export const addStall = async (req, res) => {
     // Map frontend field names to backend field names - be flexible with field names
     const {
       stallNumber,
-      stallNo = stallNumber,
+      stallNo,
       price,
-      rental_price = price,
+      rental_price,
+      floor_id,
       floor,
+      floorId,  // Added: Frontend sends 'floorId'
+      section_id,
       section,
+      sectionId,  // Added: Frontend sends 'sectionId'
       size,
       location,
-      stall_location = location,
+      stall_location,
       description,
       image,
-      stall_image = image,
+      stall_image,
       isAvailable = true,
       status,
       priceType = "Fixed Price",
-      price_type = priceType,
+      price_type,
+      // NEW: Raffle/Auction specific fields
+      durationHours,
+      duration_hours,
+      startingPrice // Only for auctions
     } = req.body;
 
-    // Use the mapped values
+    // Use the mapped values with multiple fallbacks
     const stallNo_final = stallNo || stallNumber;
     const price_final = rental_price || price;
     const location_final = stall_location || location;
     const image_final = stall_image || image;
     const priceType_final = price_type || priceType || "Fixed Price";
-
-    // More flexible validation - floor and section are not required since they don't exist in DB
-    if (!stallNo_final || !price_final || !location_final || !size) {
+    const floor_id_final = floor_id || floor || floorId;  // Updated: Include floorId
+    const section_id_final = section_id || section || sectionId;  // Updated: Include sectionId
+    
+    // NEW: Handle duration for raffle/auction
+    const duration_final = duration_hours || durationHours;
+    
+    // Validate price type
+    const validPriceTypes = ["Fixed Price", "Raffle", "Auction"];
+    if (!validPriceTypes.includes(priceType_final)) {
       return res.status(400).json({
         success: false,
-        message:
-          "Required fields: stallNumber/stallNo, price/rental_price, location/stall_location, size",
+        message: `Invalid price type. Must be one of: ${validPriceTypes.join(', ')}`
+      });
+    }
+    
+    // For auction, starting price might be different from rental price
+    const finalPrice = priceType_final === "Auction" && startingPrice 
+      ? parseFloat(startingPrice) 
+      : parseFloat(price_final);
+
+    // ✅ MOVED: Now log the mapped values AFTER they're declared
+    console.log("Mapped values:", {
+      stallNo_final,
+      price_final, 
+      location_final,
+      floor_id_final,
+      section_id_final,
+      priceType_final,
+      duration_final,
+      finalPrice
+    });
+
+    // Updated validation - require duration for raffle/auction
+    let validationErrors = [];
+    if (!stallNo_final) validationErrors.push("stallNumber/stallNo");
+    if (!finalPrice || finalPrice <= 0) validationErrors.push("price/rental_price/startingPrice");
+    if (!location_final) validationErrors.push("location/stall_location");
+    if (!size) validationErrors.push("size");
+    if (!floor_id_final) validationErrors.push("floor_id/floor/floorId");
+    if (!section_id_final) validationErrors.push("section_id/section/sectionId");
+    
+    // For raffle/auction, duration is required
+    if ((priceType_final === "Raffle" || priceType_final === "Auction") && (!duration_final || duration_final <= 0)) {
+      validationErrors.push("durationHours/duration_hours (required for raffle/auction)");
+    }
+    
+    if (validationErrors.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Missing or invalid required fields: ${validationErrors.join(', ')}`,
         received: {
           stallNumber: !!stallNumber,
           stallNo: !!stallNo,
           price: !!price,
           rental_price: !!rental_price,
+          startingPrice: !!startingPrice,
           location: !!location,
           stall_location: !!stall_location,
           size: !!size,
-          floor: !!floor,
-          section: !!section,
+          floor_id: !!floor_id_final,
+          section_id: !!section_id_final,
+          priceType: priceType_final,
+          durationHours: duration_final,
+          floorId: !!floorId,
+          sectionId: !!sectionId,
         },
         availableFields: Object.keys(req.body),
       });
@@ -90,45 +147,47 @@ export const addStall = async (req, res) => {
       `Branch manager ${branchManagerId} belongs to branch ${managerBranchId} (${branchName})`
     );
 
-    // Find the first available section in the branch manager's branch
-    const [availableSections] = await connection.execute(
-      `SELECT sec.section_id, sec.section_name, f.floor_name 
-       FROM section sec
-       INNER JOIN floor f ON sec.floor_id = f.floor_id
-       WHERE f.branch_id = ?
-       ORDER BY f.floor_number, sec.section_name
-       LIMIT 1`,
-      [managerBranchId]
+    // Validate that the provided floor and section belong to this branch manager's branch
+    const [floorSectionCheck] = await connection.execute(
+      `SELECT s.section_id, s.section_name, f.floor_id, f.floor_name 
+       FROM section s
+       INNER JOIN floor f ON s.floor_id = f.floor_id
+       WHERE f.branch_id = ? AND f.floor_id = ? AND s.section_id = ?`,
+      [managerBranchId, floor_id_final, section_id_final]
     );
 
-    if (!availableSections || availableSections.length === 0) {
+    if (!floorSectionCheck || floorSectionCheck.length === 0) {
       return res.status(400).json({
         success: false,
-        message: `No sections found for branch ${branchName}. Please create floors and sections first.`,
+        message: `Invalid floor (${floor_id_final}) or section (${section_id_final}) for branch ${branchName}. Please select a valid floor and section.`,
       });
     }
 
-    const targetSectionId = availableSections[0].section_id;
+    const targetFloorId = floorSectionCheck[0].floor_id;
+    const targetSectionId = floorSectionCheck[0].section_id;
+    const floorName = floorSectionCheck[0].floor_name;
+    const sectionName = floorSectionCheck[0].section_name;
+    
     console.log(
-      `Using section_id ${targetSectionId} (${availableSections[0].section_name}) in branch ${branchName}`
+      `Using floor_id ${targetFloorId} (${floorName}) and section_id ${targetSectionId} (${sectionName}) in branch ${branchName}`
     );
 
-    // Check if stall number already exists for this branch manager
+    // Check if stall number already exists on the same floor (updated logic)
     const [existingStall] = await connection.execute(
-      `SELECT s.stall_id 
+      `SELECT s.stall_id, f.floor_name
        FROM stall s
-       INNER JOIN section sec ON s.section_id = sec.section_id
-       INNER JOIN floor f ON sec.floor_id = f.floor_id
-       INNER JOIN branch b ON f.branch_id = b.branch_id
-       INNER JOIN branch_manager bm ON b.branch_id = bm.branch_id
-       WHERE s.stall_no = ? AND bm.branch_manager_id = ?`,
-      [stallNo_final, branchManagerId]
+       INNER JOIN floor f ON s.floor_id = f.floor_id
+       WHERE s.stall_no = ? AND s.floor_id = ?`,
+      [stallNo_final, targetFloorId]
     );
 
     if (existingStall.length > 0) {
+      console.log("🚨 STALL DUPLICATE CHECK - NEW FLOOR-BASED LOGIC");
+      console.log("Existing stall found:", existingStall);
+      console.log("Checking stall_no:", stallNo_final, "on floor_id:", targetFloorId);
       return res.status(400).json({
         success: false,
-        message: `Stall number ${stallNo_final} already exists in your branch`,
+        message: `Stall number ${stallNo_final} already exists on ${floorName}. Please choose a different stall number for this floor.`,
       });
     }
 
@@ -137,28 +196,35 @@ export const addStall = async (req, res) => {
       stall_no: stallNo_final,
       stall_location: location_final,
       size: size,
+      floor_id: targetFloorId,
       section_id: targetSectionId,
-      rental_price: parseFloat(price_final),
+      rental_price: finalPrice,
       price_type: priceType_final,
       status: isAvailable !== false ? "Active" : "Inactive",
       stamp: "APPROVED",
       description: description || null,
       stall_image: image_final || null,
       is_available: isAvailable !== false ? 1 : 0,
+      // NEW: Raffle/Auction specific fields
+      raffle_auction_duration_hours: (priceType_final === "Raffle" || priceType_final === "Auction") ? duration_final : null,
+      raffle_auction_status: (priceType_final === "Raffle" || priceType_final === "Auction") ? "Not Started" : "Not Started",
+      created_by_manager: branchManagerId
     };
 
     console.log("Mapped database data:", stallData);
 
-    // Insert new stall with proper section_id
+    // Insert new stall with proper floor_id and section_id
     const [result] = await connection.execute(
       `INSERT INTO stall (
-        stall_no, stall_location, size, section_id, rental_price, 
-        price_type, status, stamp, description, stall_image, is_available, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+        stall_no, stall_location, size, floor_id, section_id, rental_price, 
+        price_type, status, stamp, description, stall_image, is_available, 
+        raffle_auction_duration_hours, raffle_auction_status, created_by_manager, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
       [
         stallData.stall_no,
         stallData.stall_location,
         stallData.size,
+        stallData.floor_id,
         stallData.section_id,
         stallData.rental_price,
         stallData.price_type,
@@ -167,20 +233,59 @@ export const addStall = async (req, res) => {
         stallData.description,
         stallData.stall_image,
         stallData.is_available,
+        stallData.raffle_auction_duration_hours,
+        stallData.raffle_auction_status,
+        stallData.created_by_manager,
       ]
     );
 
     const stallId = result.insertId;
     console.log("✅ Stall created with ID:", stallId);
 
+    // Create raffle or auction record if needed
+    let additionalInfo = {};
+    
+    if (priceType_final === "Raffle") {
+      const [raffleResult] = await connection.execute(
+        `INSERT INTO raffle (
+          stall_id, duration_hours, raffle_status, created_by_manager, created_at
+        ) VALUES (?, ?, 'Waiting for Participants', ?, NOW())`,
+        [stallId, duration_final, branchManagerId]
+      );
+      
+      additionalInfo.raffleId = raffleResult.insertId;
+      console.log("✅ Raffle created with ID:", raffleResult.insertId);
+      
+    } else if (priceType_final === "Auction") {
+      const [auctionResult] = await connection.execute(
+        `INSERT INTO auction (
+          stall_id, starting_price, duration_hours, auction_status, created_by_manager, created_at
+        ) VALUES (?, ?, ?, 'Waiting for Bidders', ?, NOW())`,
+        [stallId, finalPrice, duration_final, branchManagerId]
+      );
+      
+      additionalInfo.auctionId = auctionResult.insertId;
+      console.log("✅ Auction created with ID:", auctionResult.insertId);
+    }
+
+    let successMessage = `Stall ${stallNo_final} added successfully to ${floorName}, ${sectionName}`;
+    
+    if (priceType_final === "Raffle") {
+      successMessage += `. Raffle will start when first applicant applies (Duration: ${duration_final} hours)`;
+    } else if (priceType_final === "Auction") {
+      successMessage += `. Auction will start when first bid is placed (Duration: ${duration_final} hours, Starting: ₱${finalPrice})`;
+    }
+
     res.status(201).json({
       success: true,
-      message: "Stall added successfully",
+      message: successMessage,
       data: {
         id: stallId,
         ...stallData,
-        section_name: availableSections[0].section_name,
+        floor_name: floorName,
+        section_name: sectionName,
         branch_name: branchName,
+        ...additionalInfo
       },
     });
 
