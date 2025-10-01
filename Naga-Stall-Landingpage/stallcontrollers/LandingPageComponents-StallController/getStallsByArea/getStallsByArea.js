@@ -1,19 +1,19 @@
-import { createConnection } from '../../../config/database.js'
+import { createConnection } from "../../../config/database.js";
 
 // Get stalls by area
 export const getStallsByArea = async (req, res) => {
-  let connection
+  let connection;
   try {
-    const { area } = req.query
+    const { area } = req.query;
 
     if (!area) {
       return res.status(400).json({
         success: false,
-        message: 'Area parameter is required',
-      })
+        message: "Area parameter is required",
+      });
     }
 
-    connection = await createConnection()
+    connection = await createConnection();
 
     const [stalls] = await connection.execute(
       `
@@ -21,7 +21,6 @@ export const getStallsByArea = async (req, res) => {
         s.*,
         s.stall_id as id,
         sec.section_name as section,
-        sec.section_code,
         f.floor_name as floor,
         f.floor_number,
         b.area,
@@ -33,27 +32,27 @@ export const getStallsByArea = async (req, res) => {
       INNER JOIN section sec ON s.section_id = sec.section_id
       INNER JOIN floor f ON sec.floor_id = f.floor_id
       INNER JOIN branch b ON f.branch_id = b.branch_id
-      INNER JOIN branch_manager bm ON b.branch_id = bm.branch_id
+      LEFT JOIN branch_manager bm ON b.branch_id = bm.branch_id
       WHERE b.area = ? AND s.status = 'Active' AND s.is_available = 1
       ORDER BY s.created_at DESC
     `,
-      [area],
-    )
+      [area]
+    );
 
     res.json({
       success: true,
       message: `Stalls in ${area} retrieved successfully`,
       data: stalls,
       area: area,
-    })
+    });
   } catch (error) {
-    console.error('❌ Get stalls by area error:', error)
+    console.error("❌ Get stalls by area error:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to retrieve stalls by area',
+      message: "Failed to retrieve stalls by area",
       error: error.message,
-    })
+    });
   } finally {
-    if (connection) await connection.end()
+    if (connection) await connection.end();
   }
-}
+};

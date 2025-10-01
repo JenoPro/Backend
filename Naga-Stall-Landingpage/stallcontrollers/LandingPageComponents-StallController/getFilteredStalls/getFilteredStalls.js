@@ -1,19 +1,27 @@
-import { createConnection } from '../../../config/database.js'
+import { createConnection } from "../../../config/database.js";
 
 // Get filtered stalls
 export const getFilteredStalls = async (req, res) => {
-  let connection
+  let connection;
   try {
-    const { area, location, section, search, minPrice, maxPrice, sortBy = 'default', limit = 50 } = req.query
+    const {
+      area,
+      location,
+      section,
+      search,
+      minPrice,
+      maxPrice,
+      sortBy = "default",
+      limit = 50,
+    } = req.query;
 
-    connection = await createConnection()
+    connection = await createConnection();
 
     let query = `
       SELECT 
         s.*,
         s.stall_id as id,
         sec.section_name as section,
-        sec.section_code,
         f.floor_name as floor,
         f.floor_number,
         b.area,
@@ -25,28 +33,28 @@ export const getFilteredStalls = async (req, res) => {
       INNER JOIN section sec ON s.section_id = sec.section_id
       INNER JOIN floor f ON sec.floor_id = f.floor_id
       INNER JOIN branch b ON f.branch_id = b.branch_id
-      INNER JOIN branch_manager bm ON b.branch_id = bm.branch_id
+      LEFT JOIN branch_manager bm ON b.branch_id = bm.branch_id
       WHERE s.status = 'Active' AND s.is_available = 1
-    `
+    `;
 
-    const queryParams = []
+    const queryParams = [];
 
     // Area filter
     if (area) {
-      query += ' AND b.area = ?'
-      queryParams.push(area)
+      query += " AND b.area = ?";
+      queryParams.push(area);
     }
 
     // Location filter
     if (location) {
-      query += ' AND b.location = ?'
-      queryParams.push(location)
+      query += " AND b.location = ?";
+      queryParams.push(location);
     }
 
     // Section filter
     if (section) {
-      query += ' AND sec.section_name = ?'
-      queryParams.push(section)
+      query += " AND sec.section_name = ?";
+      queryParams.push(section);
     }
 
     // Search filter
@@ -57,42 +65,48 @@ export const getFilteredStalls = async (req, res) => {
         s.description LIKE ? OR
         b.area LIKE ? OR
         b.location LIKE ?
-      )`
-      const searchPattern = `%${search}%`
-      queryParams.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern)
+      )`;
+      const searchPattern = `%${search}%`;
+      queryParams.push(
+        searchPattern,
+        searchPattern,
+        searchPattern,
+        searchPattern,
+        searchPattern
+      );
     }
 
     // Price range filters
     if (minPrice && !isNaN(minPrice)) {
-      query += ' AND s.rental_price >= ?'
-      queryParams.push(parseFloat(minPrice))
+      query += " AND s.rental_price >= ?";
+      queryParams.push(parseFloat(minPrice));
     }
 
     if (maxPrice && !isNaN(maxPrice)) {
-      query += ' AND s.rental_price <= ?'
-      queryParams.push(parseFloat(maxPrice))
+      query += " AND s.rental_price <= ?";
+      queryParams.push(parseFloat(maxPrice));
     }
 
     // Sorting
-    let orderBy = 's.created_at DESC'
-    if (sortBy === 'price-low') {
-      orderBy = 's.rental_price ASC'
-    } else if (sortBy === 'price-high') {
-      orderBy = 's.rental_price DESC'
-    } else if (sortBy === 'newest') {
-      orderBy = 's.created_at DESC'
-    } else if (sortBy === 'oldest') {
-      orderBy = 's.created_at ASC'
+    let orderBy = "s.created_at DESC";
+    if (sortBy === "price-low") {
+      orderBy = "s.rental_price ASC";
+    } else if (sortBy === "price-high") {
+      orderBy = "s.rental_price DESC";
+    } else if (sortBy === "newest") {
+      orderBy = "s.created_at DESC";
+    } else if (sortBy === "oldest") {
+      orderBy = "s.created_at ASC";
     }
 
-    query += ` ORDER BY ${orderBy} LIMIT ?`
-    queryParams.push(parseInt(limit))
+    query += ` ORDER BY ${orderBy} LIMIT ?`;
+    queryParams.push(parseInt(limit));
 
-    const [stalls] = await connection.execute(query, queryParams)
+    const [stalls] = await connection.execute(query, queryParams);
 
     res.json({
       success: true,
-      message: 'Filtered stalls retrieved successfully',
+      message: "Filtered stalls retrieved successfully",
       data: stalls,
       filters: {
         area,
@@ -105,15 +119,15 @@ export const getFilteredStalls = async (req, res) => {
         limit,
       },
       count: stalls.length,
-    })
+    });
   } catch (error) {
-    console.error('❌ Get filtered stalls error:', error)
+    console.error("❌ Get filtered stalls error:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to retrieve filtered stalls',
+      message: "Failed to retrieve filtered stalls",
       error: error.message,
-    })
+    });
   } finally {
-    if (connection) await connection.end()
+    if (connection) await connection.end();
   }
-}
+};
