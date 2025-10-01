@@ -1,5 +1,5 @@
 // Test database structure to see actual columns
-import { createConnection } from '../config/database.js'
+import { createConnection } from './Naga-Stall-Management/config/database.js'
 
 async function checkDatabaseStructure() {
   let connection
