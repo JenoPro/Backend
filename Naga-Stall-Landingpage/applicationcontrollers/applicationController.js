@@ -397,4 +397,173 @@ export const applicationController = {
       }
     }
   },
+
+  // Get all applicants from the database
+  async getAllApplicants(req, res) {
+    let connection;
+
+    try {
+      connection = await createConnection();
+
+      const { business_type, application_status, search } = req.query;
+
+      let query = `
+        SELECT 
+          applicant_id,
+          applicant_full_name,
+          applicant_contact_number,
+          applicant_email,
+          applicant_address,
+          business_type,
+          business_name,
+          business_description,
+          preferred_area,
+          preferred_location,
+          application_status,
+          applied_date,
+          created_at,
+          updated_at
+        FROM applicant
+        WHERE 1=1
+      `;
+
+      const params = [];
+
+      // Filter by business type if provided
+      if (business_type) {
+        query += " AND business_type = ?";
+        params.push(business_type);
+      }
+
+      // Filter by application status if provided
+      if (application_status) {
+        query += " AND application_status = ?";
+        params.push(application_status);
+      }
+
+      // Search functionality across multiple fields
+      if (search) {
+        query += ` AND (
+          applicant_full_name LIKE ? OR 
+          applicant_email LIKE ? OR 
+          business_name LIKE ? OR 
+          business_type LIKE ?
+        )`;
+        const searchTerm = `%${search}%`;
+        params.push(searchTerm, searchTerm, searchTerm, searchTerm);
+      }
+
+      query += " ORDER BY applied_date DESC";
+
+      const [applicants] = await connection.execute(query, params);
+
+      res.json({
+        success: true,
+        message: "Applicants retrieved successfully",
+        data: applicants,
+        count: applicants.length,
+        filters: {
+          business_type: business_type || "all",
+          application_status: application_status || "all",
+          search: search || "",
+        },
+      });
+    } catch (error) {
+      console.error("❌ Get all applicants error:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to retrieve applicants",
+        error: error.message,
+      });
+    } finally {
+      if (connection) {
+        await connection.end();
+      }
+    }
+  },
+
+  // Get applicant by ID
+  async getApplicantById(req, res) {
+    let connection;
+
+    try {
+      connection = await createConnection();
+
+      const { applicant_id } = req.params;
+
+      if (!applicant_id) {
+        return res.status(400).json({
+          success: false,
+          message: "Applicant ID is required",
+        });
+      }
+
+      const [applicantRows] = await connection.execute(
+        `SELECT 
+          applicant_id,
+          applicant_full_name,
+          applicant_contact_number,
+          applicant_email,
+          applicant_address,
+          business_type,
+          business_name,
+          business_description,
+          preferred_area,
+          preferred_location,
+          application_status,
+          applied_date,
+          created_at,
+          updated_at
+        FROM applicant 
+        WHERE applicant_id = ?`,
+        [applicant_id]
+      );
+
+      if (applicantRows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "Applicant not found",
+        });
+      }
+
+      // Also get applicant's applications
+      const [applicationsRows] = await connection.execute(
+        `SELECT 
+          app.application_id,
+          app.stall_id,
+          app.application_status,
+          app.application_date,
+          s.stall_no,
+          s.rental_price,
+          s.stall_location,
+          s.section,
+          s.floor
+        FROM application app
+        JOIN stall s ON app.stall_id = s.stall_id
+        WHERE app.applicant_id = ?
+        ORDER BY app.application_date DESC`,
+        [applicant_id]
+      );
+
+      res.json({
+        success: true,
+        message: "Applicant retrieved successfully",
+        data: {
+          applicant: applicantRows[0],
+          applications: applicationsRows,
+        },
+      });
+    } catch (error) {
+      console.error("❌ Get applicant by ID error:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to retrieve applicant",
+        error: error.message,
+      });
+    } finally {
+      if (connection) {
+        await connection.end();
+      }
+    }
+  },
 };

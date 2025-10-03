@@ -8,6 +8,9 @@ import { createApplicant } from './applicantsComponents/createApplicant.js'
 import { updateApplicant } from './applicantsComponents/updateApplicant.js'
 import { deleteApplicant } from './applicantsComponents/deleteApplicant.js'
 import { searchApplicants } from './applicantsComponents/searchApplicants.js'
+import { getApplicantsByBranch } from './applicantsComponents/getApplicantsByBranch.js'
+import { getApplicantsByStall } from './applicantsComponents/getApplicantsByStall.js'
+import { getApplicantsByBranchManager } from './applicantsComponents/getApplicantsByBranchManager.js'
 
 // Export all applicant functions (components are called directly)
 export {
@@ -16,5 +19,8 @@ export {
   createApplicant,
   updateApplicant,
   deleteApplicant,
-  searchApplicants
+  searchApplicants,
+  getApplicantsByBranch,      // For viewing applicants in a specific branch
+  getApplicantsByStall,       // For detailed stall applicant management
+  getApplicantsByBranchManager // For branch managers to see their assigned applicants
 }

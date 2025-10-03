@@ -2,7 +2,8 @@ import { createConnection } from '../../../config/database.js'
 
 // Add new stall (assigned to the authenticated branch manager)
 export const addStall = async (req, res) => {
-  console.log("🔥 UPDATED ADDSTALL FUNCTION CALLED - VERSION 2.0 with floor_id support");
+  console.log("🔥 UPDATED ADDSTALL FUNCTION CALLED - VERSION 2.1 with DEADLINE SYSTEM");
+  console.log("🔍 Request body received:", JSON.stringify(req.body, null, 2));
   let connection;
   try {
     // Get the branch manager ID from the authenticated user
@@ -41,9 +42,9 @@ export const addStall = async (req, res) => {
       status,
       priceType = "Fixed Price",
       price_type,
-      // NEW: Raffle/Auction specific fields
-      durationHours,
-      duration_hours,
+      // UPDATED: Raffle/Auction deadline fields (replaced duration)
+      deadline,  // New: deadline as datetime string
+      applicationDeadline, // Alternative field name
       startingPrice // Only for auctions
     } = req.body;
 
@@ -56,8 +57,35 @@ export const addStall = async (req, res) => {
     const floor_id_final = floor_id || floor || floorId;  // Updated: Include floorId
     const section_id_final = section_id || section || sectionId;  // Updated: Include sectionId
     
-    // NEW: Handle duration for raffle/auction
-    const duration_final = duration_hours || durationHours;
+    // UPDATED: Handle deadline for raffle/auction (replaced duration)
+    const deadline_final = deadline || applicationDeadline;
+    
+    // Validate deadline for raffle/auction
+    if ((priceType_final === "Raffle" || priceType_final === "Auction") && !deadline_final) {
+      return res.status(400).json({
+        success: false,
+        message: `Deadline is required for ${priceType_final} stalls. Please provide a deadline date and time.`
+      });
+    }
+    
+    // Validate deadline format and ensure it's in the future
+    let parsedDeadline = null;
+    if (deadline_final) {
+      parsedDeadline = new Date(deadline_final);
+      if (isNaN(parsedDeadline.getTime())) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid deadline format. Please provide a valid date and time.'
+        });
+      }
+      
+      if (parsedDeadline <= new Date()) {
+        return res.status(400).json({
+          success: false,
+          message: 'Deadline must be in the future.'
+        });
+      }
+    }
     
     // Validate price type
     const validPriceTypes = ["Fixed Price", "Raffle", "Auction"];
@@ -81,11 +109,11 @@ export const addStall = async (req, res) => {
       floor_id_final,
       section_id_final,
       priceType_final,
-      duration_final,
+      deadline_final: deadline_final || 'Not applicable',
       finalPrice
     });
 
-    // Updated validation - require duration for raffle/auction
+    // Updated validation - require deadline for raffle/auction
     let validationErrors = [];
     if (!stallNo_final) validationErrors.push("stallNumber/stallNo");
     if (!finalPrice || finalPrice <= 0) validationErrors.push("price/rental_price/startingPrice");
@@ -94,9 +122,9 @@ export const addStall = async (req, res) => {
     if (!floor_id_final) validationErrors.push("floor_id/floor/floorId");
     if (!section_id_final) validationErrors.push("section_id/section/sectionId");
     
-    // For raffle/auction, duration is required
-    if ((priceType_final === "Raffle" || priceType_final === "Auction") && (!duration_final || duration_final <= 0)) {
-      validationErrors.push("durationHours/duration_hours (required for raffle/auction)");
+    // For raffle/auction, deadline is required
+    if ((priceType_final === "Raffle" || priceType_final === "Auction") && !deadline_final) {
+      validationErrors.push("deadline/applicationDeadline (required for raffle/auction)");
     }
     
     if (validationErrors.length > 0) {
@@ -115,7 +143,7 @@ export const addStall = async (req, res) => {
           floor_id: !!floor_id_final,
           section_id: !!section_id_final,
           priceType: priceType_final,
-          durationHours: duration_final,
+          deadline: !!deadline_final,
           floorId: !!floorId,
           sectionId: !!sectionId,
         },
@@ -205,8 +233,9 @@ export const addStall = async (req, res) => {
       description: description || null,
       stall_image: image_final || null,
       is_available: isAvailable !== false ? 1 : 0,
-      // NEW: Raffle/Auction specific fields
-      raffle_auction_duration_hours: (priceType_final === "Raffle" || priceType_final === "Auction") ? duration_final : null,
+      // UPDATED: Raffle/Auction deadline fields (replaced duration)
+      raffle_auction_deadline: (priceType_final === "Raffle" || priceType_final === "Auction") ? parsedDeadline : null,
+      deadline_active: 0, // Initially false, will be activated when first applicant applies
       raffle_auction_status: (priceType_final === "Raffle" || priceType_final === "Auction") ? "Not Started" : "Not Started",
       created_by_manager: branchManagerId
     };
@@ -218,8 +247,8 @@ export const addStall = async (req, res) => {
       `INSERT INTO stall (
         stall_no, stall_location, size, floor_id, section_id, rental_price, 
         price_type, status, stamp, description, stall_image, is_available, 
-        raffle_auction_duration_hours, raffle_auction_status, created_by_manager, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+        raffle_auction_deadline, deadline_active, raffle_auction_status, created_by_manager, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
       [
         stallData.stall_no,
         stallData.stall_location,
@@ -233,7 +262,8 @@ export const addStall = async (req, res) => {
         stallData.description,
         stallData.stall_image,
         stallData.is_available,
-        stallData.raffle_auction_duration_hours,
+        stallData.raffle_auction_deadline,
+        stallData.deadline_active,
         stallData.raffle_auction_status,
         stallData.created_by_manager,
       ]
@@ -248,9 +278,9 @@ export const addStall = async (req, res) => {
     if (priceType_final === "Raffle") {
       const [raffleResult] = await connection.execute(
         `INSERT INTO raffle (
-          stall_id, duration_hours, raffle_status, created_by_manager, created_at
-        ) VALUES (?, ?, 'Waiting for Participants', ?, NOW())`,
-        [stallId, duration_final, branchManagerId]
+          stall_id, raffle_status, created_by_manager, created_at
+        ) VALUES (?, 'Waiting for Participants', ?, NOW())`,
+        [stallId, branchManagerId]
       );
       
       additionalInfo.raffleId = raffleResult.insertId;
@@ -259,9 +289,9 @@ export const addStall = async (req, res) => {
     } else if (priceType_final === "Auction") {
       const [auctionResult] = await connection.execute(
         `INSERT INTO auction (
-          stall_id, starting_price, duration_hours, auction_status, created_by_manager, created_at
-        ) VALUES (?, ?, ?, 'Waiting for Bidders', ?, NOW())`,
-        [stallId, finalPrice, duration_final, branchManagerId]
+          stall_id, starting_price, auction_status, created_by_manager, created_at
+        ) VALUES (?, ?, 'Waiting for Bidders', ?, NOW())`,
+        [stallId, finalPrice, branchManagerId]
       );
       
       additionalInfo.auctionId = auctionResult.insertId;
@@ -271,9 +301,9 @@ export const addStall = async (req, res) => {
     let successMessage = `Stall ${stallNo_final} added successfully to ${floorName}, ${sectionName}`;
     
     if (priceType_final === "Raffle") {
-      successMessage += `. Raffle will start when first applicant applies (Duration: ${duration_final} hours)`;
+      successMessage += `. Raffle will start when first applicant applies (Deadline: ${deadline_final})`;
     } else if (priceType_final === "Auction") {
-      successMessage += `. Auction will start when first bid is placed (Duration: ${duration_final} hours, Starting: ₱${finalPrice})`;
+      successMessage += `. Auction will start when first bid is placed (Deadline: ${deadline_final}, Starting: ₱${finalPrice})`;
     }
 
     res.status(201).json({
