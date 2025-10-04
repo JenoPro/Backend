@@ -23,6 +23,7 @@ router.get('/', getAllApplicants)                   // GET /api/applicants - Get
 router.get('/search', searchApplicants)             // GET /api/applicants/search - Search applicants
 
 // Branch and stall specific routes (for admin/branch managers)
+router.get('/my-stall-applicants', getApplicantsByBranchManager) // GET /api/applicants/my-stall-applicants - Get authenticated branch manager's stall applicants
 router.get('/branch/:branch_id', getApplicantsByBranch)          // GET /api/applicants/branch/:branch_id - Get applicants by branch
 router.get('/stall/:stall_id', getApplicantsByStall)             // GET /api/applicants/stall/:stall_id - Get applicants by stall
 router.get('/manager/:branch_manager_id', getApplicantsByBranchManager) // GET /api/applicants/manager/:branch_manager_id - Get applicants by branch manager
