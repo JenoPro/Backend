@@ -40,11 +40,26 @@ export const applicantController = {
       } = req.body;
 
       // Validate required fields
-      if (!applicant_full_name || !applicant_contact_number) {
+      if (!applicant_full_name || !applicant_contact_number || !email_address) {
         return res.status(400).json({
           success: false,
-          message: "Applicant name and contact number are required",
+          message: "Applicant name, contact number, and email address are required",
         });
+      }
+
+      // Check if email already exists to prevent duplicates
+      if (email_address) {
+        const [existingEmail] = await connection.execute(
+          'SELECT applicant_id FROM other_information WHERE email_address = ?',
+          [email_address]
+        );
+
+        if (existingEmail.length > 0) {
+          return res.status(400).json({
+            success: false,
+            message: 'Email address already exists'
+          });
+        }
       }
 
       // 1. Create applicant record
