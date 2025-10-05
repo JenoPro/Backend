@@ -11,6 +11,9 @@ import { searchApplicants } from './applicantsComponents/searchApplicants.js'
 import { getApplicantsByBranch } from './applicantsComponents/getApplicantsByBranch.js'
 import { getApplicantsByStall } from './applicantsComponents/getApplicantsByStall.js'
 import { getApplicantsByBranchManager } from './applicantsComponents/getApplicantsByBranchManager.js'
+import { approveApplicant } from './applicantsComponents/approveApplicant.js'
+import { declineApplicant } from './applicantsComponents/declineApplicant.js'
+import { storeCredentials, getAllCredentials } from './applicantsComponents/credentialsController.js'
 
 // Export all applicant functions (components are called directly)
 export {
@@ -22,5 +25,9 @@ export {
   searchApplicants,
   getApplicantsByBranch,      // For viewing applicants in a specific branch
   getApplicantsByStall,       // For detailed stall applicant management
-  getApplicantsByBranchManager // For branch managers to see their assigned applicants
+  getApplicantsByBranchManager, // For branch managers to see their assigned applicants
+  approveApplicant,           // Approve applicant and store credentials
+  declineApplicant,           // Decline applicant and delete all data
+  storeCredentials,           // Store credentials for mobile app
+  getAllCredentials           // Get all stored credentials
 }

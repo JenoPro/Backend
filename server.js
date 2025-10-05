@@ -221,8 +221,13 @@ app.listen(PORT, async () => {
   console.log("   POST /api/applicants - Create new applicant (public)");
   console.log("   GET  /api/applicants - Get all applicants (protected)");
   console.log("   GET  /api/applicants/search - Search applicants (protected)");
+  console.log("   GET  /api/applicants/my-stall-applicants - Get applicants for authenticated manager (protected)");
   console.log("   GET  /api/applicants/:id - Get applicant by ID (protected)");
   console.log("   PUT  /api/applicants/:id - Update applicant (protected)");
+  console.log("   PUT  /api/applicants/:id/approve - Approve applicant with credentials (protected)");
+  console.log("   PUT  /api/applicants/:id/decline - Decline applicant and delete data (protected)");
+  console.log("   POST /api/applicants/credentials - Store mobile app credentials (protected)");
+  console.log("   GET  /api/applicants/credentials - Get all credentials (protected)");
   console.log("   DELETE /api/applicants/:id - Delete applicant (protected)");
 
   // Legacy landing page endpoints

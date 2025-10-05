@@ -9,7 +9,11 @@ import {
   searchApplicants,
   getApplicantsByBranch,
   getApplicantsByStall,
-  getApplicantsByBranchManager
+  getApplicantsByBranchManager,
+  approveApplicant,
+  declineApplicant,
+  storeCredentials,
+  getAllCredentials
 } from '../controllers/applicants/applicantsController.js'
 
 const router = express.Router()
@@ -27,6 +31,14 @@ router.get('/my-stall-applicants', getApplicantsByBranchManager) // GET /api/app
 router.get('/branch/:branch_id', getApplicantsByBranch)          // GET /api/applicants/branch/:branch_id - Get applicants by branch
 router.get('/stall/:stall_id', getApplicantsByStall)             // GET /api/applicants/stall/:stall_id - Get applicants by stall
 router.get('/manager/:branch_manager_id', getApplicantsByBranchManager) // GET /api/applicants/manager/:branch_manager_id - Get applicants by branch manager
+
+// Approval and decline routes (for branch managers)
+router.put('/:id/approve', approveApplicant)        // PUT /api/applicants/:id/approve - Approve applicant and store credentials
+router.put('/:id/decline', declineApplicant)        // PUT /api/applicants/:id/decline - Decline applicant and delete data
+
+// Credentials management routes
+router.post('/credentials', storeCredentials)       // POST /api/applicants/credentials - Store mobile app credentials  
+router.get('/credentials', getAllCredentials)       // GET /api/applicants/credentials - Get all credentials
 
 router.get('/:id', getApplicantById)               // GET /api/applicants/:id - Get applicant by ID
 router.put('/:id', updateApplicant)                // PUT /api/applicants/:id - Update applicant

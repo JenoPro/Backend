@@ -5,6 +5,7 @@ const router = express.Router();
 
 // Applicant routes
 router.post("/", applicantController.createApplicant); // POST /api/applicants - Create new applicant
+router.post("/stall-application", applicantController.createStallApplication); // POST /api/applicants/stall-application - Create complete stall application (atomic)
 router.get("/", applicantController.getAllApplicants); // GET /api/applicants - Get all applicants
 router.get("/:id", applicantController.getApplicantById); // GET /api/applicants/:id - Get applicant by ID
 router.put("/:id", applicantController.updateApplicant); // PUT /api/applicants/:id - Update applicant
