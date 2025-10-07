@@ -13,6 +13,7 @@ import { getApplicantsByStall } from './applicantsComponents/getApplicantsByStal
 import { getApplicantsByBranchManager } from './applicantsComponents/getApplicantsByBranchManager.js'
 import { approveApplicant } from './applicantsComponents/approveApplicant.js'
 import { declineApplicant } from './applicantsComponents/declineApplicant.js'
+import { updateApplicantStatus } from './applicantsComponents/updateApplicantStatus.js'
 import { storeCredentials, getAllCredentials } from './applicantsComponents/credentialsController.js'
 
 // Export all applicant functions (components are called directly)
@@ -28,6 +29,7 @@ export {
   getApplicantsByBranchManager, // For branch managers to see their assigned applicants
   approveApplicant,           // Approve applicant and store credentials
   declineApplicant,           // Decline applicant and delete all data
+  updateApplicantStatus,      // Update applicant status (for frontend compatibility)
   storeCredentials,           // Store credentials for mobile app
   getAllCredentials           // Get all stored credentials
 }

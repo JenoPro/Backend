@@ -226,6 +226,7 @@ app.listen(PORT, async () => {
   console.log("   PUT  /api/applicants/:id - Update applicant (protected)");
   console.log("   PUT  /api/applicants/:id/approve - Approve applicant with credentials (protected)");
   console.log("   PUT  /api/applicants/:id/decline - Decline applicant and delete data (protected)");
+  console.log("   PUT  /api/applicants/:id/status - Update applicant status (protected)");
   console.log("   POST /api/applicants/credentials - Store mobile app credentials (protected)");
   console.log("   GET  /api/applicants/credentials - Get all credentials (protected)");
   console.log("   DELETE /api/applicants/:id - Delete applicant (protected)");

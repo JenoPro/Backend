@@ -12,6 +12,7 @@ import {
   getApplicantsByBranchManager,
   approveApplicant,
   declineApplicant,
+  updateApplicantStatus,
   storeCredentials,
   getAllCredentials
 } from '../controllers/applicants/applicantsController.js'
@@ -35,6 +36,7 @@ router.get('/manager/:branch_manager_id', getApplicantsByBranchManager) // GET /
 // Approval and decline routes (for branch managers)
 router.put('/:id/approve', approveApplicant)        // PUT /api/applicants/:id/approve - Approve applicant and store credentials
 router.put('/:id/decline', declineApplicant)        // PUT /api/applicants/:id/decline - Decline applicant and delete data
+router.put('/:id/status', updateApplicantStatus)    // PUT /api/applicants/:id/status - Update applicant status
 
 // Credentials management routes
 router.post('/credentials', storeCredentials)       // POST /api/applicants/credentials - Store mobile app credentials  
