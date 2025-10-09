@@ -28,6 +28,9 @@ import landingStallRoutes from "./Naga-Stall-Landingpage/routes/stallRoutes.js";
 import landingApplicantRoutes from "./Naga-Stall-Landingpage/routes/applicantRoutes.js";
 import applicationRoutes from "./Naga-Stall-Landingpage/routes/applicationRoutes.js";
 
+// Import Mobile app routes
+import mobileRoutes from "./Naga-Stall-Mobile-Application/routes/loginRouter.js";
+
 // Import specific landing page functions for public access
 import {
   getAvailableAreas,
@@ -40,7 +43,7 @@ import {
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 
 // Middleware
 app.use(cors(corsConfig));
@@ -60,7 +63,7 @@ app.get("/api/stalls/filter", getFilteredStalls); // GET /api/stalls/filter?area
 // Feature-based routes (protected)
 app.use("/api/stalls", stallRoutes); // Stall management
 app.use("/api/branches", branchRoutes); // Branch management (for branch managers)
-app.use("/api/applicants", applicantRoutes); // Applicant management
+app.use("/api/applicants", applicantRoutes); // Applicant management - ONLY APPROVAL for mobile credentials
 
 // Admin-specific routes (different URL structure expected by frontend)
 app.use("/api/admin/branches", branchRoutes); // Admin branch management
@@ -86,6 +89,7 @@ app.get(
 ); // GET /api/branch-manager/floors-with-sections
 
 // ===== LEGACY ROUTES (Landing Page & Mobile - unchanged) =====
+app.use("/api/mobile", mobileRoutes); // Mobile app routes
 app.use("/api/landing-stalls", landingStallRoutes);
 app.use("/api/landing-applicants", landingApplicantRoutes);
 app.use("/api/applications", applicationRoutes);
@@ -131,9 +135,10 @@ app.use("*", (req, res) => {
 });
 
 // Start server
-app.listen(PORT, async () => {
+app.listen(PORT, '0.0.0.0', async () => {
   console.log("🚀 Naga Stall Management Server starting...");
   console.log(`🌐 Server running on http://localhost:${PORT}`);
+  console.log(`📱 Mobile access: http://192.168.8.38:${PORT}`);
   console.log(`🔧 Environment: ${process.env.NODE_ENV || "development"}`);
   console.log("🌐 CORS enabled for frontend URLs");
   console.log("📋 API Endpoints:");
@@ -232,6 +237,10 @@ app.listen(PORT, async () => {
   console.log("   DELETE /api/applicants/:id - Delete applicant (protected)");
 
   // Legacy landing page endpoints
+  console.log("\n   === MOBILE APP ENDPOINTS ===");
+  console.log("   POST /api/mobile/mobile-login - Mobile app login");
+  console.log("   POST /api/mobile/submit-application - Submit stall application");
+
   console.log("\n   === LEGACY LANDING PAGE ENDPOINTS ===");
   console.log("   GET  /api/landing-stalls/* - Landing page stall endpoints");
   console.log(
