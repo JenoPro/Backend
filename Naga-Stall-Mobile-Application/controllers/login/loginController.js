@@ -194,8 +194,8 @@ export const mobileLogin = async (req, res) => {
           previous_experience: additionalInfo.previous_business_experience,
           relative_stall_owner: additionalInfo.relative_stall_owner
         },
-        spouse_info: additionalInfo.spouse_fullname ? {
-          full_name: additionalInfo.spouse_fullname,
+        spouse_info: additionalInfo.spouse_full_name ? {
+          full_name: additionalInfo.spouse_full_name,
           birthdate: additionalInfo.spouse_birthdate,
           educational_attainment: additionalInfo.spouse_educational_attainment,
           contact_number: additionalInfo.spouse_contact_number,
