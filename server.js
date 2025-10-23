@@ -11,6 +11,7 @@ import authRoutes from "./Naga-Stall-Management/routes/authRoutes.js";
 import stallRoutes from "./Naga-Stall-Management/routes/stallRoutes.js";
 import branchRoutes from "./Naga-Stall-Management/routes/branchRoutes.js";
 import applicantRoutes from "./Naga-Stall-Management/routes/applicantRoutes.js";
+import employeeRoutes from "./Naga-Stall-Management/routes/employeeRoutes.js";
 
 // Import floor/section functions for direct endpoints
 import {
@@ -64,6 +65,7 @@ app.get("/api/stalls/filter", getFilteredStalls); // GET /api/stalls/filter?area
 app.use("/api/stalls", stallRoutes); // Stall management
 app.use("/api/branches", branchRoutes); // Branch management (for branch managers)
 app.use("/api/applicants", applicantRoutes); // Applicant management - ONLY APPROVAL for mobile credentials
+app.use("/api/employees", employeeRoutes); // Employee management
 
 // Admin-specific routes (different URL structure expected by frontend)
 app.use("/api/admin/branches", branchRoutes); // Admin branch management
@@ -235,6 +237,18 @@ app.listen(PORT, '0.0.0.0', async () => {
   console.log("   POST /api/applicants/credentials - Store mobile app credentials (protected)");
   console.log("   GET  /api/applicants/credentials - Get all credentials (protected)");
   console.log("   DELETE /api/applicants/:id - Delete applicant (protected)");
+
+  // Employee management endpoints
+  console.log("\n   === EMPLOYEE MANAGEMENT ENDPOINTS ===");
+  console.log("   POST /api/employees - Create new employee with auto-generated credentials (protected)");
+  console.log("   GET  /api/employees - Get all employees with filtering (protected)");
+  console.log("   GET  /api/employees/:id - Get employee by ID (protected)");
+  console.log("   PUT  /api/employees/:id - Update employee information (protected)");
+  console.log("   DELETE /api/employees/:id - Soft delete employee (protected)");
+  console.log("   GET  /api/employees/branch/:branchId - Get employees by branch (protected)");
+  console.log("   POST /api/employees/login - Employee login (public)");
+  console.log("   POST /api/employees/logout - Employee logout (protected)");
+  console.log("   POST /api/employees/:id/reset-password - Reset employee password (protected)");
 
   // Legacy landing page endpoints
   console.log("\n   === MOBILE APP ENDPOINTS ===");

@@ -8,6 +8,7 @@ import authRoutes from '../../Naga-Stall-Management/routes/authRoutes.js'
 import stallRoutes from '../../Naga-Stall-Management/routes/stallRoutes.js'
 import branchRoutes from '../../Naga-Stall-Management/routes/branchRoutes.js'
 import applicantRoutes from '../../Naga-Stall-Management/routes/applicantRoutes.js'
+import employeeRoutes from '../../Naga-Stall-Management/routes/employeeRoutes.js'
 import { errorHandler } from '../../Naga-Stall-Management/middleware/errorHandler.js'
 
 // Load environment variables from .env file
@@ -25,6 +26,7 @@ app.use('/api/auth', authRoutes)        // Authentication routes for branch mana
 app.use('/api/stalls', stallRoutes)     // Stall management routes (with authentication) - INCLUDES RAFFLE/AUCTION
 app.use('/api/branches', branchRoutes)  // Branch management routes
 app.use('/api/applicants', applicantRoutes) // Applicant management routes
+app.use('/api/employees', employeeRoutes)    // Employee management routes
 
 // Test database connection endpoint
 app.get('/api/test-db', async (req, res) => {
