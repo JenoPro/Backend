@@ -159,7 +159,6 @@ export const updateApplicantStatus = async (req, res) => {
               `UPDATE credential SET 
                 user_name = ?, 
                 password_hash = ?, 
-                updated_date = NOW(),
                 is_active = 1
               WHERE applicant_id = ?`,
               [finalUsername, passwordHash, applicant.applicant_id]
