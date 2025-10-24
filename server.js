@@ -137,7 +137,7 @@ app.use("*", (req, res) => {
 });
 
 // Start server
-app.listen(PORT, '0.0.0.0', async () => {
+app.listen(PORT, "0.0.0.0", async () => {
   console.log("🚀 Naga Stall Management Server starting...");
   console.log(`🌐 Server running on http://localhost:${PORT}`);
   console.log(`📱 Mobile access: http://192.168.8.38:${PORT}`);
@@ -228,32 +228,58 @@ app.listen(PORT, '0.0.0.0', async () => {
   console.log("   POST /api/applicants - Create new applicant (public)");
   console.log("   GET  /api/applicants - Get all applicants (protected)");
   console.log("   GET  /api/applicants/search - Search applicants (protected)");
-  console.log("   GET  /api/applicants/my-stall-applicants - Get applicants for authenticated manager (protected)");
+  console.log(
+    "   GET  /api/applicants/my-stall-applicants - Get applicants for authenticated manager (protected)"
+  );
   console.log("   GET  /api/applicants/:id - Get applicant by ID (protected)");
   console.log("   PUT  /api/applicants/:id - Update applicant (protected)");
-  console.log("   PUT  /api/applicants/:id/approve - Approve applicant with credentials (protected)");
-  console.log("   PUT  /api/applicants/:id/decline - Decline applicant and delete data (protected)");
-  console.log("   PUT  /api/applicants/:id/status - Update applicant status (protected)");
-  console.log("   POST /api/applicants/credentials - Store mobile app credentials (protected)");
-  console.log("   GET  /api/applicants/credentials - Get all credentials (protected)");
+  console.log(
+    "   PUT  /api/applicants/:id/approve - Approve applicant with credentials (protected)"
+  );
+  console.log(
+    "   PUT  /api/applicants/:id/decline - Decline applicant and delete data (protected)"
+  );
+  console.log(
+    "   PUT  /api/applicants/:id/status - Update applicant status (protected)"
+  );
+  console.log(
+    "   POST /api/applicants/credentials - Store mobile app credentials (protected)"
+  );
+  console.log(
+    "   GET  /api/applicants/credentials - Get all credentials (protected)"
+  );
   console.log("   DELETE /api/applicants/:id - Delete applicant (protected)");
 
   // Employee management endpoints
   console.log("\n   === EMPLOYEE MANAGEMENT ENDPOINTS ===");
-  console.log("   POST /api/employees - Create new employee with auto-generated credentials (protected)");
-  console.log("   GET  /api/employees - Get all employees with filtering (protected)");
+  console.log(
+    "   POST /api/employees - Create new employee with auto-generated credentials (protected)"
+  );
+  console.log(
+    "   GET  /api/employees - Get all employees with filtering (protected)"
+  );
   console.log("   GET  /api/employees/:id - Get employee by ID (protected)");
-  console.log("   PUT  /api/employees/:id - Update employee information (protected)");
-  console.log("   DELETE /api/employees/:id - Soft delete employee (protected)");
-  console.log("   GET  /api/employees/branch/:branchId - Get employees by branch (protected)");
+  console.log(
+    "   PUT  /api/employees/:id - Update employee information (protected)"
+  );
+  console.log(
+    "   DELETE /api/employees/:id - Soft delete employee (protected)"
+  );
+  console.log(
+    "   GET  /api/employees/branch/:branchId - Get employees by branch (protected)"
+  );
   console.log("   POST /api/employees/login - Employee login (public)");
   console.log("   POST /api/employees/logout - Employee logout (protected)");
-  console.log("   POST /api/employees/:id/reset-password - Reset employee password (protected)");
+  console.log(
+    "   POST /api/employees/:id/reset-password - Reset employee password (protected)"
+  );
 
   // Legacy landing page endpoints
   console.log("\n   === MOBILE APP ENDPOINTS ===");
   console.log("   POST /api/mobile/mobile-login - Mobile app login");
-  console.log("   POST /api/mobile/submit-application - Submit stall application");
+  console.log(
+    "   POST /api/mobile/submit-application - Submit stall application"
+  );
 
   console.log("\n   === LEGACY LANDING PAGE ENDPOINTS ===");
   console.log("   GET  /api/landing-stalls/* - Landing page stall endpoints");
