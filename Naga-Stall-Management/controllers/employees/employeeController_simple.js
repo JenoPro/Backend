@@ -65,22 +65,34 @@ export const createEmployee = async (req, res) => {
     const permissionsJSON = JSON.stringify(permissions || []);
 
     // Call stored procedure to create employee
-    const [result] = await connection.execute(
-      "CALL createEmployee(?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      [
-        username,
-        passwordHash,
-        firstName,
-        lastName,
+    const [result] = await connection.execute(`
+      INSERT INTO employee (
+        employee_username,
+        employee_password_hash,
+        first_name,
+        last_name,
         email,
-        phoneNumber || null,
-        finalBranchId,
-        createdByManager || null,
-        permissionsJSON,
-      ]
-    );
+        phone_number,
+        branch_id,
+        created_by_manager,
+        permissions,
+        status,
+        password_reset_required,
+        created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Active', FALSE, NOW())
+    `, [
+      username,
+      passwordHash,
+      firstName,
+      lastName,
+      email,
+      phoneNumber || null,
+      finalBranchId,
+      createdByManager || null,
+      permissionsJSON,
+    ]);
 
-    const employeeId = result[0]?.[0]?.employee_id;
+    const employeeId = result.insertId;
 
     if (!employeeId) {
       throw new Error("Failed to create employee - no ID returned");
@@ -128,22 +140,47 @@ export const createEmployee = async (req, res) => {
 export const getAllEmployees = async (req, res) => {
   let connection;
   try {
-    const { status, branchId, limit = 50, offset = 0 } = req.query;
+    const { status, limit = 50, offset = 0 } = req.query;
+
+    // Get the authenticated user's branch
+    const userBranchId = req.user?.branchId;
+    const userType = req.user?.userType || req.user?.role;
+
+    console.log("🔍 getAllEmployees - User details:", {
+      userType,
+      userBranchId,
+      userId: req.user?.userId
+    });
+
+    if (!userBranchId) {
+      return res.status(400).json({
+        success: false,
+        message: "User not assigned to any branch"
+      });
+    }
 
     connection = await createConnection();
 
-    // Call stored procedure to get all employees
+    // For branch managers and employees, only show employees from their branch
+    // Admin users can see all employees (if branchId is null/undefined)
+    const branchFilter = userType === 'admin' ? null : userBranchId;
+
+    console.log("🎯 Filtering employees by branch:", branchFilter);
+
+    // Call stored procedure to get employees (filtered by branch)
     const [rows] = await connection.execute(
       "CALL getAllEmployees(?, ?, ?, ?)",
       [
         status || null,
-        branchId ? parseInt(branchId) : null,
+        branchFilter,
         limit ? parseInt(limit) : null,
         offset ? parseInt(offset) : null,
       ]
     );
 
     const employees = rows[0] || [];
+
+    console.log("📊 Found employees:", employees.length);
 
     // Parse permissions JSON for each employee
     const formattedEmployees = employees.map((emp) => ({
@@ -156,6 +193,11 @@ export const getAllEmployees = async (req, res) => {
       message: "Employees retrieved successfully",
       data: formattedEmployees,
       count: formattedEmployees.length,
+      filters: {
+        branch_id: branchFilter,
+        status: status || 'all',
+        user_type: userType
+      }
     });
   } catch (error) {
     console.error("Error in getAllEmployees:", error);
@@ -473,6 +515,8 @@ export const loginEmployee = async (req, res) => {
   try {
     const { username, password, ipAddress, userAgent } = req.body;
 
+    console.log("🔐 Employee Login Attempt:", { username, hasPassword: !!password });
+
     if (!username || !password) {
       return res.status(400).json({
         success: false,
@@ -482,12 +526,32 @@ export const loginEmployee = async (req, res) => {
 
     connection = await createConnection();
 
-    // Get employee by username
-    const [rows] = await connection.execute("CALL getEmployeeByUsername(?)", [
-      username,
-    ]);
+    // Test if employee table exists
+    try {
+      const [testResult] = await connection.execute("SELECT COUNT(*) as count FROM employee LIMIT 1");
+      console.log("✅ Employee table exists, record count check:", testResult[0].count);
+    } catch (tableError) {
+      console.error("❌ Employee table might not exist:", tableError.message);
+      return res.status(500).json({
+        success: false,
+        message: "Employee table not found",
+        error: tableError.message,
+      });
+    }
 
-    const employee = rows[0]?.[0];
+    // Get employee by username using direct SQL query
+    const [rows] = await connection.execute(`
+      SELECT 
+        e.*,
+        b.branch_name
+      FROM employee e
+      LEFT JOIN branch b ON e.branch_id = b.branch_id
+      WHERE e.employee_username = ?
+    `, [username]);
+
+    console.log("🔍 Employee query result count:", rows.length);
+
+    const employee = rows[0];
 
     if (!employee) {
       return res.status(401).json({

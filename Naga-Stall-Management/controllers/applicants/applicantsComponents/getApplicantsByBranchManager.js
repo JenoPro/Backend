@@ -1,54 +1,103 @@
 import { createConnection } from '../../../config/database.js'
 
-// Get applicants for stalls managed by a specific branch manager
+// Get applicants for stalls managed by a specific branch manager OR by employees in their assigned branch
 export const getApplicantsByBranchManager = async (req, res) => {
   let connection;
   try {
     connection = await createConnection();
 
-    // Get branch manager ID from URL params OR from authenticated user
-    let branch_manager_id = req.params.branch_manager_id;
-    
-    if (!branch_manager_id) {
-      branch_manager_id = req.user?.branchManagerId || req.user?.userId;
-      console.log("🔍 No branch_manager_id in params, using authenticated user:", req.user);
-      console.log("🎯 Extracted branch_manager_id:", branch_manager_id);
-    }
+    console.log("🔍 Request user info:", req.user);
+
+    // Check if user is an employee or branch manager
+    const userType = req.user?.userType || req.user?.role;
+    const userId = req.user?.userId;
+    const userBranchId = req.user?.branchId;
+
+    console.log("🎯 User details:", { userType, userId, userBranchId });
 
     const { application_status, price_type, search } = req.query;
 
-    if (!branch_manager_id) {
-      return res.status(400).json({
-        success: false,
-        message: 'Branch Manager ID not found in authentication token or URL parameters'
-      });
+    let branch_id = null;
+    let managerData = null;
+    let branch_manager_id = null; // Add this for branch managers
+
+    if (userType === 'employee') {
+      // For employees, use their assigned branch directly
+      if (!userBranchId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Employee not assigned to any branch'
+        });
+      }
+
+      branch_id = userBranchId;
+
+      // Get branch information for employee
+      const [branchInfo] = await connection.execute(
+        `SELECT 
+          b.branch_id,
+          b.branch_name,
+          b.area,
+          b.location,
+          'Employee' as manager_name,
+          'N/A' as manager_email
+        FROM branch b
+        WHERE b.branch_id = ?`,
+        [branch_id]
+      );
+
+      if (branchInfo.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: 'Branch not found'
+        });
+      }
+
+      managerData = branchInfo[0];
+
+    } else {
+      // For branch managers, use the original logic
+      branch_manager_id = req.params.branch_manager_id;
+      
+      if (!branch_manager_id) {
+        branch_manager_id = req.user?.branchManagerId || req.user?.userId;
+        console.log("🔍 No branch_manager_id in params, using authenticated user:", req.user);
+        console.log("🎯 Extracted branch_manager_id:", branch_manager_id);
+      }
+
+      if (!branch_manager_id) {
+        return res.status(400).json({
+          success: false,
+          message: 'Branch Manager ID not found in authentication token or URL parameters'
+        });
+      }
+
+      // First, get the branches managed by this branch manager
+      const [branchManagerInfo] = await connection.execute(
+        `SELECT 
+          bm.branch_manager_id,
+          CONCAT(bm.first_name, ' ', bm.last_name) as manager_name,
+          bm.email as manager_email,
+          b.branch_id,
+          b.branch_name,
+          b.area,
+          b.location
+        FROM branch_manager bm
+        INNER JOIN branch b ON bm.branch_id = b.branch_id
+        WHERE bm.branch_manager_id = ?`,
+        [branch_manager_id]
+      );
+
+      if (branchManagerInfo.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: 'Branch Manager not found or not assigned to any branch'
+        });
+      }
+
+      managerData = branchManagerInfo[0];
+      branch_id = managerData.branch_id;
     }
-
-    // First, get the branches managed by this branch manager
-    const [branchManagerInfo] = await connection.execute(
-      `SELECT 
-        bm.branch_manager_id,
-        CONCAT(bm.first_name, ' ', bm.last_name) as manager_name,
-        bm.email as manager_email,
-        b.branch_id,
-        b.branch_name,
-        b.area,
-        b.location
-      FROM branch_manager bm
-      INNER JOIN branch b ON bm.branch_id = b.branch_id
-      WHERE bm.branch_manager_id = ?`,
-      [branch_manager_id]
-    );
-
-    if (branchManagerInfo.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'Branch Manager not found or not assigned to any branch'
-      });
-    }
-
-    const managerData = branchManagerInfo[0];
-    const branch_id = managerData.branch_id;
 
     let query = `
       SELECT DISTINCT
@@ -249,7 +298,9 @@ export const getApplicantsByBranchManager = async (req, res) => {
         }
       },
       filters: {
-        branch_manager_id: branch_manager_id,
+        branch_manager_id: userType === 'employee' ? 'N/A (Employee)' : branch_manager_id,
+        user_type: userType,
+        branch_id: branch_id,
         application_status: application_status || 'all',
         price_type: price_type || 'all',
         search: search || ''
