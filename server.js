@@ -31,6 +31,7 @@ import applicationRoutes from "./Naga-Stall-Landingpage/routes/applicationRoutes
 
 // Import Mobile app routes
 import mobileRoutes from "./Naga-Stall-Mobile-Application/routes/loginRouter.js";
+import mobileStallRoutes from "./Naga-Stall-Mobile-Application/routes/stallRoutes.js";
 
 // Import specific landing page functions for public access
 import {
@@ -91,7 +92,8 @@ app.get(
 ); // GET /api/branch-manager/floors-with-sections
 
 // ===== LEGACY ROUTES (Landing Page & Mobile - unchanged) =====
-app.use("/api/mobile", mobileRoutes); // Mobile app routes
+app.use("/api/mobile", mobileRoutes); // Mobile app login routes
+app.use("/api/mobile", mobileStallRoutes); // Mobile app stall routes
 app.use("/api/landing-stalls", landingStallRoutes);
 app.use("/api/landing-applicants", landingApplicantRoutes);
 app.use("/api/applications", applicationRoutes);
@@ -280,6 +282,12 @@ app.listen(PORT, "0.0.0.0", async () => {
   console.log(
     "   POST /api/mobile/submit-application - Submit stall application"
   );
+  console.log("   GET  /api/mobile/stalls?applicant_id=X - Get stalls (restricted to applied areas)");
+  console.log("   GET  /api/mobile/stalls/type/:type?applicant_id=X - Get stalls by type (restricted to applied areas)");
+  console.log("   GET  /api/mobile/stalls/area/:area?applicant_id=X - Get stalls by area (restricted to applied areas)");
+  console.log("   GET  /api/mobile/stalls/:id?applicant_id=X - Get stall details by ID");
+  console.log("   GET  /api/mobile/areas?applicant_id=X - Get areas (only where applicant has applications)");
+  console.log("   GET  /api/mobile/stalls/search?applicant_id=X - Search stalls (restricted to applied areas)");
 
   console.log("\n   === LEGACY LANDING PAGE ENDPOINTS ===");
   console.log("   GET  /api/landing-stalls/* - Landing page stall endpoints");
@@ -318,6 +326,199 @@ app.listen(PORT, "0.0.0.0", async () => {
   } catch (error) {
     console.error("\n❌ Failed to initialize database:", error);
     process.exit(1);
+  }
+});
+
+// Temporary test endpoints for debugging auction stalls
+app.get('/api/test/auction-stalls', async (req, res) => {
+  const { createConnection } = await import('./Naga-Stall-Management/config/database.js');
+  let connection;
+  try {
+    connection = await createConnection();
+    
+    // Get all auction stalls with full details
+    const [auctionStalls] = await connection.execute(`
+      SELECT 
+        st.stall_id, st.stall_no, st.stall_location, st.size, st.rental_price, 
+        st.price_type, st.status, st.description, st.stall_image, st.is_available,
+        sec.section_name, sec.section_id, f.floor_name, f.floor_id, 
+        b.branch_name, b.area, b.location, b.branch_id
+      FROM stall st
+      JOIN section sec ON st.section_id = sec.section_id
+      JOIN floor f ON sec.floor_id = f.floor_id
+      JOIN branch b ON f.branch_id = b.branch_id
+      WHERE st.price_type = 'Auction'
+      AND st.is_available = 1 
+      AND st.status = 'Active'
+      ORDER BY b.branch_name, st.stall_no
+    `);
+
+    // Format like mobile app expects
+    const formattedStalls = auctionStalls.map(stall => ({
+      id: stall.stall_id,
+      stallNumber: stall.stall_no,
+      price: stall.rental_price ? stall.rental_price.toLocaleString() : '0',
+      priceValue: stall.rental_price || 0,
+      currentBid: stall.rental_price || 0,
+      currentBidder: null,
+      location: stall.branch_name || 'Unknown',
+      floor: `${stall.floor_name} / ${stall.section_name}`,
+      size: stall.size || 'Unknown',
+      status: 'available',
+      auctionDate: "To be announced",
+      startTime: "To be announced",
+      image: stall.stall_image || 'https://oldspitalfieldsmarket.com/cms/2017/10/OSM_FP_Stall_sq-1440x1440.jpg',
+      stallDescription: stall.description || 'No description available',
+      branchId: stall.branch_id,
+      priceType: stall.price_type,
+      stallLocation: stall.stall_location,
+      
+      // Original stall data for debugging
+      original_data: stall
+    }));
+
+    res.json({
+      success: true,
+      message: 'Auction stalls test endpoint',
+      data: {
+        total_auction_stalls: auctionStalls.length,
+        formatted_stalls: formattedStalls,
+        raw_stalls: auctionStalls
+      }
+    });
+
+  } catch (error) {
+    console.error('Test endpoint error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Test endpoint failed',
+      error: error.message
+    });
+  } finally {
+    if (connection) await connection.end();
+  }
+});
+
+// Test endpoint for mobile login simulation
+app.post('/api/test/mobile-login-sim', async (req, res) => {
+  const { createConnection } = await import('./Naga-Stall-Management/config/database.js');
+  let connection;
+  try {
+    connection = await createConnection();
+    
+    const { username } = req.body;
+    
+    if (!username) {
+      return res.status(400).json({
+        success: false,
+        message: 'Username required for simulation'
+      });
+    }
+
+    // Get applicant info
+    const [applicantData] = await connection.execute(`
+      SELECT c.applicant_id, a.applicant_full_name
+      FROM credential c
+      JOIN applicant a ON c.applicant_id = a.applicant_id
+      WHERE c.user_name = ? AND c.is_active = 1
+    `, [username]);
+
+    if (applicantData.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    const applicant = applicantData[0];
+
+    // Get applied areas
+    const [appliedAreas] = await connection.execute(`
+      SELECT DISTINCT b.area, b.branch_id, b.branch_name, b.location
+      FROM application app
+      JOIN stall st ON app.stall_id = st.stall_id
+      JOIN section sec ON st.section_id = sec.section_id
+      JOIN floor f ON sec.floor_id = f.floor_id
+      JOIN branch b ON f.branch_id = b.branch_id
+      WHERE app.applicant_id = ?
+    `, [applicant.applicant_id]);
+
+    // If no applications, get all areas
+    let targetAreas = [];
+    if (appliedAreas.length === 0) {
+      const [allAreas] = await connection.execute(`
+        SELECT DISTINCT b.area, b.branch_id, b.branch_name, b.location
+        FROM branch b
+        WHERE b.is_active = 1
+        ORDER BY b.area
+      `);
+      targetAreas = allAreas;
+    } else {
+      targetAreas = appliedAreas;
+    }
+
+    // Get stalls in target areas
+    const areaConditions = targetAreas.map(() => 'b.area = ?').join(' OR ');
+    const areaValues = targetAreas.map(area => area.area);
+
+    let stallsQuery = `
+      SELECT 
+        st.stall_id, st.stall_no, st.stall_location, st.size, st.rental_price, 
+        st.price_type, st.status, st.description, st.stall_image, st.is_available,
+        sec.section_name, sec.section_id, f.floor_name, f.floor_id, 
+        b.branch_name, b.area, b.location, b.branch_id
+      FROM stall st
+      JOIN section sec ON st.section_id = sec.section_id
+      JOIN floor f ON sec.floor_id = f.floor_id
+      JOIN branch b ON f.branch_id = b.branch_id
+      WHERE st.is_available = 1 AND st.status = 'Active'`;
+
+    if (areaValues.length > 0) {
+      stallsQuery += ` AND (${areaConditions})`;
+    }
+
+    stallsQuery += ' ORDER BY st.price_type, b.branch_name, st.stall_no';
+
+    const [availableStalls] = await connection.execute(stallsQuery, areaValues);
+
+    // Group by price type
+    const stallsByType = {
+      Fixed: availableStalls.filter(s => s.price_type === 'Fixed Price'),
+      Raffle: availableStalls.filter(s => s.price_type === 'Raffle'),
+      Auction: availableStalls.filter(s => s.price_type === 'Auction')
+    };
+
+    res.json({
+      success: true,
+      message: 'Mobile login simulation',
+      data: {
+        user: {
+          applicant_id: applicant.applicant_id,
+          username: username,
+          full_name: applicant.applicant_full_name
+        },
+        target_areas: targetAreas,
+        applied_areas: appliedAreas,
+        stalls_by_type: stallsByType,
+        total_stalls: availableStalls.length,
+        auction_stalls_count: stallsByType.Auction.length,
+        debug_info: {
+          has_applications: appliedAreas.length > 0,
+          area_filter_applied: areaValues.length > 0,
+          areas_checked: areaValues
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Mobile login simulation error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Simulation failed',
+      error: error.message
+    });
+  } finally {
+    if (connection) await connection.end();
   }
 });
 

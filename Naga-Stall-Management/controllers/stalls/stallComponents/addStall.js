@@ -200,22 +200,23 @@ export const addStall = async (req, res) => {
       `Using floor_id ${targetFloorId} (${floorName}) and section_id ${targetSectionId} (${sectionName}) in branch ${branchName}`
     );
 
-    // Check if stall number already exists on the same floor (updated logic)
+    // Check if stall number already exists in the same section on the same floor
     const [existingStall] = await connection.execute(
-      `SELECT s.stall_id, f.floor_name
+      `SELECT s.stall_id, f.floor_name, sec.section_name
        FROM stall s
-       INNER JOIN floor f ON s.floor_id = f.floor_id
-       WHERE s.stall_no = ? AND s.floor_id = ?`,
-      [stallNo_final, targetFloorId]
+       INNER JOIN section sec ON s.section_id = sec.section_id
+       INNER JOIN floor f ON sec.floor_id = f.floor_id
+       WHERE s.stall_no = ? AND s.section_id = ?`,
+      [stallNo_final, targetSectionId]
     );
 
     if (existingStall.length > 0) {
-      console.log("🚨 STALL DUPLICATE CHECK - NEW FLOOR-BASED LOGIC");
+      console.log("🚨 STALL DUPLICATE CHECK - SECTION-BASED LOGIC");
       console.log("Existing stall found:", existingStall);
-      console.log("Checking stall_no:", stallNo_final, "on floor_id:", targetFloorId);
+      console.log("Checking stall_no:", stallNo_final, "in section_id:", targetSectionId);
       return res.status(400).json({
         success: false,
-        message: `Stall number ${stallNo_final} already exists on ${floorName}. Please choose a different stall number for this floor.`,
+        message: `Stall number ${stallNo_final} already exists in ${existingStall[0].section_name} section on ${existingStall[0].floor_name}. Please choose a different stall number for this section.`,
       });
     }
 
