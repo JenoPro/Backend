@@ -58,7 +58,7 @@ export async function initializeDatabase() {
   let connection
 
   try {
-    console.log('🔧 Creating database if not exists...')
+    console.log('🔧 Checking database connection...')
 
     // Create connection without specifying database first
     const tempConnection = await mysql.createConnection({
@@ -114,6 +114,25 @@ export async function initializeDatabase() {
     }
 
     console.log('✅ All required tables exist')
+
+    // Check if stored procedures exist - DO NOT recreate them
+    const [procedureCheck] = await connection.execute(
+      `
+      SELECT COUNT(*) as count 
+      FROM information_schema.routines 
+      WHERE routine_schema = ? AND routine_type = 'PROCEDURE'
+    `,
+      [dbConfig.database],
+    )
+
+    if (procedureCheck[0].count === 0) {
+      console.log('⚠️ No stored procedures found. Please run the migration files manually:')
+      console.log('   mysql -u root -p < database/migrations/005_stored_procedures.sql')
+      console.log('   OR import the complete SQL file:')
+      console.log('   mysql -u root -p < database/naga_stall_complete.sql')
+    } else {
+      console.log(`✅ Found ${procedureCheck[0].count} stored procedures - skipping recreation`)
+    }
 
     // Display available login credentials from your actual schema
     console.log('📋 Available Login Credentials:')

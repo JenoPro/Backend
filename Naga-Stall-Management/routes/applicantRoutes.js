@@ -7,7 +7,11 @@ import {
   approveApplicant,
   updateApplicantStatus,
   declineApplicant,
-  searchApplicants
+  searchApplicants,
+  // New participant functions
+  getAllParticipants,
+  getParticipantsByBranch,
+  getParticipantsByStall
 } from '../controllers/applicants/applicantsController.js'
 
 const router = express.Router()
@@ -21,10 +25,15 @@ router.get('/', getAllApplicants)
 // Search applicants
 router.get('/search', searchApplicants)
 
+// NEW: Participant endpoints (approved applicants with active stalls) - MUST be before /:id route
+router.get('/participants', getAllParticipants)                    // GET /api/applicants/participants
+router.get('/participants/branch/:branch_name', getParticipantsByBranch)  // GET /api/applicants/participants/branch/Naga%20City%20Peoples%20Mall
+router.get('/participants/stall/:stall_id', getParticipantsByStall)       // GET /api/applicants/participants/stall/123
+
 // Get applicants for the authenticated branch manager (Management System Vue.js)
 router.get('/my-stall-applicants', getApplicantsByBranchManager)
 
-// Get individual applicant by ID
+// Get individual applicant by ID (MUST be after specific routes)
 router.get('/:id', getApplicantById)
 
 // Update applicant status (for Vue.js management system)

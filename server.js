@@ -36,10 +36,14 @@ import mobileStallRoutes from "./Naga-Stall-Mobile-Application/routes/stallRoute
 // Import specific landing page functions for public access
 import {
   getAvailableAreas,
+  getBranches,
   getLocationsByArea,
   getStallsByArea,
   getFilteredStalls,
 } from "./Naga-Stall-Landingpage/stallcontrollers/stallController.js";
+
+// Import getAllStalls function
+import { getAllStalls } from "./Naga-Stall-Landingpage/stallcontrollers/LandingPageComponents-StallController/getAllStalls/getAllStalls.js";
 
 // Load environment variables
 dotenv.config();
@@ -56,12 +60,23 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 // Authentication routes
 app.use("/api/auth", authRoutes);
 
-// PUBLIC ENDPOINTS FOR LANDING PAGE (must be before protected routes)
-app.get("/api/stalls/areas", getAvailableAreas); // GET /api/stalls/areas - Public access to areas for landing page
-app.get("/api/stalls/locations", getLocationsByArea); // GET /api/stalls/locations?area=<area> - Public access to locations
-app.get("/api/stalls/by-area", getStallsByArea); // GET /api/stalls/by-area?area=<area> - Public access to stalls by area
-app.get("/api/stalls/filter", getFilteredStalls); // GET /api/stalls/filter?area=<area>&sortBy=<sort> - Public access to filtered stalls
+// ===== PUBLIC ENDPOINTS FOR LANDING PAGE (must be before protected routes) =====
+// NEW Branch-based endpoints (Primary) - No authentication required
+app.get("/api/stalls/branches", getBranches); // GET /api/stalls/branches - Public access to branches for landing page
+app.get("/api/stalls/by-branch", getStallsByArea); // GET /api/stalls/by-branch?branch=<branch> - Public access to stalls by branch
+app.get("/api/stalls/all-stalls", getAllStalls); // GET /api/stalls/all-stalls - Public access to all stalls for landing page
 
+// Enhanced endpoints with branch support - No authentication required
+app.get("/api/stalls/locations", getLocationsByArea); // GET /api/stalls/locations?branch=<branch> - Public access to locations (supports both area and branch)
+app.get("/api/stalls/filter", getFilteredStalls); // GET /api/stalls/filter?branch=<branch>&availability=<bool> - Public access to filtered stalls
+
+// Legacy area-based endpoints (for backward compatibility) - No authentication required
+app.get("/api/stalls/areas", getAvailableAreas); // GET /api/stalls/areas - Public access to areas for landing page
+app.get("/api/stalls/by-area", getStallsByArea); // GET /api/stalls/by-area?area=<area> - Public access to stalls by area
+
+// ===== PROTECTED ROUTES (require authentication) =====
+
+// ===== PROTECTED ROUTES (require authentication) =====
 // Feature-based routes (protected)
 app.use("/api/stalls", stallRoutes); // Stall management
 app.use("/api/branches", branchRoutes); // Branch management (for branch managers)
@@ -233,6 +248,15 @@ app.listen(PORT, "0.0.0.0", async () => {
   console.log(
     "   GET  /api/applicants/my-stall-applicants - Get applicants for authenticated manager (protected)"
   );
+  console.log(
+    "   GET  /api/applicants/participants - Get all active participants (protected)"
+  );
+  console.log(
+    "   GET  /api/applicants/participants/branch/:branch_name - Get participants by branch (protected)"
+  );
+  console.log(
+    "   GET  /api/applicants/participants/stall/:stall_id - Get participants by stall (protected)"
+  );
   console.log("   GET  /api/applicants/:id - Get applicant by ID (protected)");
   console.log("   PUT  /api/applicants/:id - Update applicant (protected)");
   console.log(
@@ -282,12 +306,24 @@ app.listen(PORT, "0.0.0.0", async () => {
   console.log(
     "   POST /api/mobile/submit-application - Submit stall application"
   );
-  console.log("   GET  /api/mobile/stalls?applicant_id=X - Get stalls (restricted to applied areas)");
-  console.log("   GET  /api/mobile/stalls/type/:type?applicant_id=X - Get stalls by type (restricted to applied areas)");
-  console.log("   GET  /api/mobile/stalls/area/:area?applicant_id=X - Get stalls by area (restricted to applied areas)");
-  console.log("   GET  /api/mobile/stalls/:id?applicant_id=X - Get stall details by ID");
-  console.log("   GET  /api/mobile/areas?applicant_id=X - Get areas (only where applicant has applications)");
-  console.log("   GET  /api/mobile/stalls/search?applicant_id=X - Search stalls (restricted to applied areas)");
+  console.log(
+    "   GET  /api/mobile/stalls?applicant_id=X - Get stalls (restricted to applied areas)"
+  );
+  console.log(
+    "   GET  /api/mobile/stalls/type/:type?applicant_id=X - Get stalls by type (restricted to applied areas)"
+  );
+  console.log(
+    "   GET  /api/mobile/stalls/area/:area?applicant_id=X - Get stalls by area (restricted to applied areas)"
+  );
+  console.log(
+    "   GET  /api/mobile/stalls/:id?applicant_id=X - Get stall details by ID"
+  );
+  console.log(
+    "   GET  /api/mobile/areas?applicant_id=X - Get areas (only where applicant has applications)"
+  );
+  console.log(
+    "   GET  /api/mobile/stalls/search?applicant_id=X - Search stalls (restricted to applied areas)"
+  );
 
   console.log("\n   === LEGACY LANDING PAGE ENDPOINTS ===");
   console.log("   GET  /api/landing-stalls/* - Landing page stall endpoints");
@@ -323,6 +359,37 @@ app.listen(PORT, "0.0.0.0", async () => {
     console.log(
       "🎯 Backend reorganized by features (login, stalls, branches, applicants)"
     );
+    
+    // Quick stored procedure check to verify they exist
+    const { createConnection } = await import("./Naga-Stall-Management/config/database.js");
+    let connection;
+    try {
+      connection = await createConnection();
+      const [procedureCheck] = await connection.execute(`
+        SELECT COUNT(*) as count 
+        FROM information_schema.routines 
+        WHERE routine_schema = ? AND routine_type = 'PROCEDURE'
+      `, [process.env.DB_NAME || 'naga_stall']);
+      
+      console.log(`🔧 Stored procedures status: ${procedureCheck[0].count} procedures found`);
+      
+      if (procedureCheck[0].count === 0) {
+        console.log("⚠️  WARNING: No stored procedures found!");
+        console.log("   📝 This means your backend may not work properly");
+        console.log("   🔧 To fix this, run one of these commands:");
+        console.log("      Option 1: node check-procedures.js (to diagnose)");
+        console.log("      Option 2: Import stored procedures manually:");
+        console.log("      mysql -u root -p naga_stall < database/migrations/005_stored_procedures.sql");
+      } else {
+        console.log("✅ Stored procedures are available and ready to use");
+      }
+    } catch (procError) {
+      console.log("⚠️  Could not verify stored procedures:", procError.message);
+      console.log("   Run: node check-procedures.js to diagnose the issue");
+    } finally {
+      if (connection) await connection.end();
+    }
+    
   } catch (error) {
     console.error("\n❌ Failed to initialize database:", error);
     process.exit(1);
@@ -330,12 +397,14 @@ app.listen(PORT, "0.0.0.0", async () => {
 });
 
 // Temporary test endpoints for debugging auction stalls
-app.get('/api/test/auction-stalls', async (req, res) => {
-  const { createConnection } = await import('./Naga-Stall-Management/config/database.js');
+app.get("/api/test/auction-stalls", async (req, res) => {
+  const { createConnection } = await import(
+    "./Naga-Stall-Management/config/database.js"
+  );
   let connection;
   try {
     connection = await createConnection();
-    
+
     // Get all auction stalls with full details
     const [auctionStalls] = await connection.execute(`
       SELECT 
@@ -354,45 +423,46 @@ app.get('/api/test/auction-stalls', async (req, res) => {
     `);
 
     // Format like mobile app expects
-    const formattedStalls = auctionStalls.map(stall => ({
+    const formattedStalls = auctionStalls.map((stall) => ({
       id: stall.stall_id,
       stallNumber: stall.stall_no,
-      price: stall.rental_price ? stall.rental_price.toLocaleString() : '0',
+      price: stall.rental_price ? stall.rental_price.toLocaleString() : "0",
       priceValue: stall.rental_price || 0,
       currentBid: stall.rental_price || 0,
       currentBidder: null,
-      location: stall.branch_name || 'Unknown',
+      location: stall.branch_name || "Unknown",
       floor: `${stall.floor_name} / ${stall.section_name}`,
-      size: stall.size || 'Unknown',
-      status: 'available',
+      size: stall.size || "Unknown",
+      status: "available",
       auctionDate: "To be announced",
       startTime: "To be announced",
-      image: stall.stall_image || 'https://oldspitalfieldsmarket.com/cms/2017/10/OSM_FP_Stall_sq-1440x1440.jpg',
-      stallDescription: stall.description || 'No description available',
+      image:
+        stall.stall_image ||
+        "https://oldspitalfieldsmarket.com/cms/2017/10/OSM_FP_Stall_sq-1440x1440.jpg",
+      stallDescription: stall.description || "No description available",
       branchId: stall.branch_id,
       priceType: stall.price_type,
       stallLocation: stall.stall_location,
-      
+
       // Original stall data for debugging
-      original_data: stall
+      original_data: stall,
     }));
 
     res.json({
       success: true,
-      message: 'Auction stalls test endpoint',
+      message: "Auction stalls test endpoint",
       data: {
         total_auction_stalls: auctionStalls.length,
         formatted_stalls: formattedStalls,
-        raw_stalls: auctionStalls
-      }
+        raw_stalls: auctionStalls,
+      },
     });
-
   } catch (error) {
-    console.error('Test endpoint error:', error);
+    console.error("Test endpoint error:", error);
     res.status(500).json({
       success: false,
-      message: 'Test endpoint failed',
-      error: error.message
+      message: "Test endpoint failed",
+      error: error.message,
     });
   } finally {
     if (connection) await connection.end();
@@ -400,40 +470,46 @@ app.get('/api/test/auction-stalls', async (req, res) => {
 });
 
 // Test endpoint for mobile login simulation
-app.post('/api/test/mobile-login-sim', async (req, res) => {
-  const { createConnection } = await import('./Naga-Stall-Management/config/database.js');
+app.post("/api/test/mobile-login-sim", async (req, res) => {
+  const { createConnection } = await import(
+    "./Naga-Stall-Management/config/database.js"
+  );
   let connection;
   try {
     connection = await createConnection();
-    
+
     const { username } = req.body;
-    
+
     if (!username) {
       return res.status(400).json({
         success: false,
-        message: 'Username required for simulation'
+        message: "Username required for simulation",
       });
     }
 
     // Get applicant info
-    const [applicantData] = await connection.execute(`
+    const [applicantData] = await connection.execute(
+      `
       SELECT c.applicant_id, a.applicant_full_name
       FROM credential c
       JOIN applicant a ON c.applicant_id = a.applicant_id
       WHERE c.user_name = ? AND c.is_active = 1
-    `, [username]);
+    `,
+      [username]
+    );
 
     if (applicantData.length === 0) {
       return res.status(404).json({
         success: false,
-        message: 'User not found'
+        message: "User not found",
       });
     }
 
     const applicant = applicantData[0];
 
     // Get applied areas
-    const [appliedAreas] = await connection.execute(`
+    const [appliedAreas] = await connection.execute(
+      `
       SELECT DISTINCT b.area, b.branch_id, b.branch_name, b.location
       FROM application app
       JOIN stall st ON app.stall_id = st.stall_id
@@ -441,7 +517,9 @@ app.post('/api/test/mobile-login-sim', async (req, res) => {
       JOIN floor f ON sec.floor_id = f.floor_id
       JOIN branch b ON f.branch_id = b.branch_id
       WHERE app.applicant_id = ?
-    `, [applicant.applicant_id]);
+    `,
+      [applicant.applicant_id]
+    );
 
     // If no applications, get all areas
     let targetAreas = [];
@@ -458,8 +536,8 @@ app.post('/api/test/mobile-login-sim', async (req, res) => {
     }
 
     // Get stalls in target areas
-    const areaConditions = targetAreas.map(() => 'b.area = ?').join(' OR ');
-    const areaValues = targetAreas.map(area => area.area);
+    const areaConditions = targetAreas.map(() => "b.area = ?").join(" OR ");
+    const areaValues = targetAreas.map((area) => area.area);
 
     let stallsQuery = `
       SELECT 
@@ -477,25 +555,25 @@ app.post('/api/test/mobile-login-sim', async (req, res) => {
       stallsQuery += ` AND (${areaConditions})`;
     }
 
-    stallsQuery += ' ORDER BY st.price_type, b.branch_name, st.stall_no';
+    stallsQuery += " ORDER BY st.price_type, b.branch_name, st.stall_no";
 
     const [availableStalls] = await connection.execute(stallsQuery, areaValues);
 
     // Group by price type
     const stallsByType = {
-      Fixed: availableStalls.filter(s => s.price_type === 'Fixed Price'),
-      Raffle: availableStalls.filter(s => s.price_type === 'Raffle'),
-      Auction: availableStalls.filter(s => s.price_type === 'Auction')
+      Fixed: availableStalls.filter((s) => s.price_type === "Fixed Price"),
+      Raffle: availableStalls.filter((s) => s.price_type === "Raffle"),
+      Auction: availableStalls.filter((s) => s.price_type === "Auction"),
     };
 
     res.json({
       success: true,
-      message: 'Mobile login simulation',
+      message: "Mobile login simulation",
       data: {
         user: {
           applicant_id: applicant.applicant_id,
           username: username,
-          full_name: applicant.applicant_full_name
+          full_name: applicant.applicant_full_name,
         },
         target_areas: targetAreas,
         applied_areas: appliedAreas,
@@ -505,17 +583,16 @@ app.post('/api/test/mobile-login-sim', async (req, res) => {
         debug_info: {
           has_applications: appliedAreas.length > 0,
           area_filter_applied: areaValues.length > 0,
-          areas_checked: areaValues
-        }
-      }
+          areas_checked: areaValues,
+        },
+      },
     });
-
   } catch (error) {
-    console.error('Mobile login simulation error:', error);
+    console.error("Mobile login simulation error:", error);
     res.status(500).json({
       success: false,
-      message: 'Simulation failed',
-      error: error.message
+      message: "Simulation failed",
+      error: error.message,
     });
   } finally {
     if (connection) await connection.end();
